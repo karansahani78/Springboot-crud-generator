@@ -32,6 +32,8 @@ public class ControllerGenerator {
                 import %s.dto.%sDto;
                 import %s.service.%sService;
                 import jakarta.validation.Valid;
+                import org.slf4j.Logger;
+                import org.slf4j.LoggerFactory;
                 import org.springframework.http.HttpStatus;
                 import org.springframework.http.ResponseEntity;
                 import org.springframework.web.bind.annotation.*;
@@ -45,6 +47,7 @@ public class ControllerGenerator {
                 @RequestMapping("/api/%s")
                 public class %sController {
                 
+                    private static final Logger log = LoggerFactory.getLogger(%sController.class);
                     private final %sService service;
                 
                     public %sController(%sService service) {
@@ -74,7 +77,9 @@ public class ControllerGenerator {
                      */
                     @PostMapping
                     public ResponseEntity<%s> create(@Valid @RequestBody %sDto dto) {
+                        log.info("Received DTO for creation: {}", dto);
                         %s created = service.create(dto);
+                        log.info("Created entity: {}", created);
                         return ResponseEntity.status(HttpStatus.CREATED).body(created);
                     }
                 
@@ -86,7 +91,9 @@ public class ControllerGenerator {
                             @PathVariable %s id,
                             @Valid @RequestBody %sDto dto
                     ) {
+                        log.info("Received DTO for update: {}", dto);
                         %s updated = service.update(id, dto);
+                        log.info("Updated entity: {}", updated);
                         return ResponseEntity.ok(updated);
                     }
                 
@@ -124,6 +131,7 @@ public class ControllerGenerator {
                 basePkg, entity,
                 entity,
                 lower,
+                entity,
                 entity,
                 entity,
                 entity, entity,

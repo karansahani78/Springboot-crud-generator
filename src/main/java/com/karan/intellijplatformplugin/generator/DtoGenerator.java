@@ -7,7 +7,7 @@ import com.karan.intellijplatformplugin.model.*;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
- * Generates DTO (Data Transfer Object) classes.
+ * Generates DTO (Data Transfer Object) classes with proper getters, setters, and toString.
  */
 public class DtoGenerator {
 
@@ -21,32 +21,70 @@ public class DtoGenerator {
 
         StringBuilder fields = new StringBuilder();
         StringBuilder gettersSetters = new StringBuilder();
+        StringBuilder toStringBuilder = new StringBuilder();
 
+        int fieldCount = 0;
+        // Generate fields and getters/setters for non-ID fields
         for (FieldMeta f : meta.getFields()) {
-            if (!f.getName().equalsIgnoreCase("id")) {
-                // Add field with validation annotation
-                fields.append(String.format("""
-                        @jakarta.validation.constraints.NotNull
-                        private %s %s;
-                    
-                    """, f.getType(), f.getName()));
-
-                // Add getter
-                gettersSetters.append(String.format("""
-                        public %s get%s() {
-                            return %s;
-                        }
-                    
-                    """, f.getType(), f.getCapitalizedName(), f.getName()));
-
-                // Add setter
-                gettersSetters.append(String.format("""
-                        public void set%s(%s %s) {
-                            this.%s = %s;
-                        }
-                    
-                    """, f.getCapitalizedName(), f.getType(), f.getName(), f.getName(), f.getName()));
+            if (f.getName().equalsIgnoreCase("id")) {
+                continue; // Skip ID field in DTO
             }
+
+            String fieldName = f.getName();
+            String fieldType = f.getType();
+            String capitalizedName = f.getCapitalizedName();
+
+            // Add field with validation annotation
+            fields.append(String.format("""
+                    @jakarta.validation.constraints.NotNull
+                    private %s %s;
+                    
+                    """, fieldType, fieldName));
+
+            // Add getter
+            gettersSetters.append(String.format("""
+                    public %s get%s() {
+                        return %s;
+                    }
+                    
+                    """, fieldType, capitalizedName, fieldName));
+
+            // Add setter
+            gettersSetters.append(String.format("""
+                    public void set%s(%s %s) {
+                        this.%s = %s;
+                    }
+                    
+                    """, capitalizedName, fieldType, fieldName, fieldName, fieldName));
+
+            // Build toString
+            if (fieldCount > 0) {
+                toStringBuilder.append(", ");
+            }
+            toStringBuilder.append(String.format("%s='\" + %s + \"'", fieldName, fieldName));
+            fieldCount++;
+        }
+
+        // Generate toString method
+        String toStringMethod;
+        if (fieldCount > 0) {
+            toStringMethod = String.format("""
+                    
+                    @Override
+                    public String toString() {
+                        return "%sDto{" +
+                                "%s" +
+                                "}";
+                    }
+                    """, meta.getClassName(), toStringBuilder.toString());
+        } else {
+            toStringMethod = String.format("""
+                    
+                    @Override
+                    public String toString() {
+                        return "%sDto{}";
+                    }
+                    """, meta.getClassName());
         }
 
         String code = String.format("""
@@ -59,10 +97,14 @@ public class DtoGenerator {
                  */
                 public class %sDto {
                     
-                    %s
-                    %s
-                }
-                """, pkg, meta.getClassName(), meta.getClassName(), fields.toString(), gettersSetters.toString());
+                %s%s%s}
+                """,
+                pkg,
+                meta.getClassName(),
+                meta.getClassName(),
+                fields.toString(),
+                gettersSetters.toString(),
+                toStringMethod);
 
         PsiFile file = PsiFileFactory.getInstance(project)
                 .createFileFromText(

@@ -4,11 +4,10 @@ import com.intellij.ide.highlighter.JavaFileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.karan.intellijplatformplugin.model.ClassMeta;
-import com.karan.intellijplatformplugin.model.FieldMeta;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
- * Generates Mapper classes for entity-DTO conversion.
+ * Generates Mapper classes using Spring BeanUtils for reliable property copying.
  */
 public class MapperGenerator {
 
@@ -20,30 +19,12 @@ public class MapperGenerator {
         String pkg = meta.basePackage() + ".mapper";
         PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
 
-        StringBuilder toEntityMapping = new StringBuilder();
-        StringBuilder toDtoMapping = new StringBuilder();
-
-        for (FieldMeta f : meta.getFields()) {
-            if (!f.getName().equalsIgnoreCase("id")) {
-                String capitalizedName = f.getCapitalizedName();
-
-                // For toEntity mapping
-                toEntityMapping.append(String.format("""
-                                entity.set%s(dto.get%s());
-                        """, capitalizedName, capitalizedName));
-
-                // For toDto mapping
-                toDtoMapping.append(String.format("""
-                                dto.set%s(entity.get%s());
-                        """, capitalizedName, capitalizedName));
-            }
-        }
-
         String code = String.format("""
                 package %s;
                 
                 import %s.%s;
                 import %s.dto.%sDto;
+                import org.springframework.beans.BeanUtils;
                 
                 /**
                  * Mapper for converting between %s entity and %sDto.
@@ -52,6 +33,7 @@ public class MapperGenerator {
                 
                     /**
                      * Converts DTO to entity.
+                     * Copies all matching properties from DTO to entity.
                      */
                     public static %s toEntity(%sDto dto) {
                         if (dto == null) {
@@ -59,12 +41,13 @@ public class MapperGenerator {
                         }
                         
                         %s entity = new %s();
-                        %s
+                        BeanUtils.copyProperties(dto, entity);
                         return entity;
                     }
                 
                     /**
                      * Converts entity to DTO.
+                     * Copies all properties except 'id' from entity to DTO.
                      */
                     public static %sDto toDto(%s entity) {
                         if (entity == null) {
@@ -72,18 +55,19 @@ public class MapperGenerator {
                         }
                         
                         %sDto dto = new %sDto();
-                        %s
+                        BeanUtils.copyProperties(entity, dto, "id");
                         return dto;
                     }
                 
                     /**
-                     * Updates entity from DTO.
+                     * Updates entity from DTO (preserves ID).
+                     * Copies all properties except 'id' from DTO to entity.
                      */
                     public static void updateEntity(%s entity, %sDto dto) {
                         if (entity == null || dto == null) {
                             return;
                         }
-                        %s
+                        BeanUtils.copyProperties(dto, entity, "id");
                     }
                 }
                 """,
@@ -93,11 +77,10 @@ public class MapperGenerator {
                 meta.getClassName(), meta.getClassName(),
                 meta.getClassName(),
                 meta.getClassName(), meta.getClassName(),
-                meta.getClassName(), meta.getClassName(), toEntityMapping.toString(),
                 meta.getClassName(), meta.getClassName(),
-                meta.getClassName(), meta.getClassName(), toDtoMapping.toString(),
                 meta.getClassName(), meta.getClassName(),
-                toEntityMapping.toString()
+                meta.getClassName(), meta.getClassName(),
+                meta.getClassName(), meta.getClassName()
         );
 
         PsiFile file = PsiFileFactory.getInstance(project)
