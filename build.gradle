@@ -1,0 +1,54 @@
+plugins {
+    id 'java'
+    id 'org.jetbrains.intellij' version '1.17.4'
+}
+
+group = 'com.karan'
+version = '1.0.0'
+description = 'Spring Boot CRUD Generator IntelliJ Plugin'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+/**
+ * IntelliJ Platform configuration
+ */
+intellij {
+    version = '2023.3'
+    type = 'IC' // IntelliJ Community Edition
+
+    // 🔥 REQUIRED: enables Java PSI, PsiClass, PsiJavaFile, inspections
+    plugins = [
+            'java'
+    ]
+}
+
+/**
+ * Optional but useful for unit testing plugin logic (non-PSI)
+ */
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+}
+
+tasks {
+
+    patchPluginXml {
+        sinceBuild.set("233")
+        untilBuild.set("241.*")
+    }
+
+    runIde {
+        autoReloadPlugins.set(true)
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+}

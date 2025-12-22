@@ -1,0 +1,18 @@
+<idea-plugin>
+    <id>com.karan.springbootcrud</id>
+    <name>Spring Boot CRUD Generator</name>
+    <vendor email="karansahani723@gmail.com">Karan Sahani</vendor>
+
+    <!-- 🔥 REQUIRED: Java PSI support -->
+    <depends>com.intellij.modules.java</depends>
+
+    <actions>
+        <action
+                id="GenerateSpringCrud"
+                class="com.karan.intellijplatformplugin.action.GenerateCrudAction"
+                text="Generate Spring Boot CRUD"
+                description="Generate Controller, Service, Repository, DTO">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+        </action>
+    </actions>
+</idea-plugin>
