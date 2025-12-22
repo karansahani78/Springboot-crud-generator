@@ -6,9 +6,15 @@ import com.intellij.psi.*;
 import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
+/**
+ * Generates REST Controller classes with full CRUD endpoints.
+ */
 public class ControllerGenerator {
 
     public static void generate(Project project, PsiDirectory root, ClassMeta meta) {
+        if (project == null || root == null || meta == null) {
+            throw new IllegalArgumentException("Project, root directory, and metadata cannot be null");
+        }
 
         String basePkg = meta.basePackage();
         String controllerPkg = basePkg + ".controller";
@@ -21,69 +27,119 @@ public class ControllerGenerator {
 
         String code = String.format("""
                 package %s;
-
-                import %s.entity.%s;
+                
+                import %s.%s;
                 import %s.dto.%sDto;
                 import %s.service.%sService;
                 import jakarta.validation.Valid;
+                import org.springframework.http.HttpStatus;
                 import org.springframework.http.ResponseEntity;
                 import org.springframework.web.bind.annotation.*;
-
+                
                 import java.util.List;
-
+                
+                /**
+                 * REST Controller for %s entity operations.
+                 */
                 @RestController
                 @RequestMapping("/api/%s")
                 public class %sController {
-
+                
                     private final %sService service;
-
+                
                     public %sController(%sService service) {
                         this.service = service;
                     }
-
+                
+                    /**
+                     * GET /api/%s - Retrieves all entities.
+                     */
                     @GetMapping
                     public ResponseEntity<List<%s>> getAll() {
-                        return ResponseEntity.ok(service.findAll());
+                        List<%s> entities = service.findAll();
+                        return ResponseEntity.ok(entities);
                     }
-
+                
+                    /**
+                     * GET /api/%s/{id} - Retrieves a single entity by ID.
+                     */
+                    @GetMapping("/{id}")
+                    public ResponseEntity<%s> getById(@PathVariable %s id) {
+                        %s entity = service.findById(id);
+                        return ResponseEntity.ok(entity);
+                    }
+                
+                    /**
+                     * POST /api/%s - Creates a new entity.
+                     */
                     @PostMapping
                     public ResponseEntity<%s> create(@Valid @RequestBody %sDto dto) {
-                        return ResponseEntity.ok(service.create(dto));
+                        %s created = service.create(dto);
+                        return ResponseEntity.status(HttpStatus.CREATED).body(created);
                     }
-
+                
+                    /**
+                     * PUT /api/%s/{id} - Updates an existing entity.
+                     */
                     @PutMapping("/{id}")
                     public ResponseEntity<%s> update(
                             @PathVariable %s id,
                             @Valid @RequestBody %sDto dto
                     ) {
-                        return ResponseEntity.ok(service.update(id, dto));
+                        %s updated = service.update(id, dto);
+                        return ResponseEntity.ok(updated);
                     }
-
+                
+                    /**
+                     * DELETE /api/%s/{id} - Deletes an entity by ID.
+                     */
                     @DeleteMapping("/{id}")
                     public ResponseEntity<Void> delete(@PathVariable %s id) {
                         service.delete(id);
                         return ResponseEntity.noContent().build();
                     }
-
-                    @GetMapping("/{id}")
-                    public ResponseEntity<%s> getById(@PathVariable %s id) {
-                        return ResponseEntity.ok(service.findById(id));
+                
+                    /**
+                     * HEAD /api/%s/{id} - Checks if an entity exists.
+                     */
+                    @RequestMapping(value = "/{id}", method = RequestMethod.HEAD)
+                    public ResponseEntity<Void> exists(@PathVariable %s id) {
+                        boolean exists = service.existsById(id);
+                        return exists ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
+                    }
+                
+                    /**
+                     * GET /api/%s/count - Returns the total count of entities.
+                     */
+                    @GetMapping("/count")
+                    public ResponseEntity<Long> count() {
+                        long count = service.count();
+                        return ResponseEntity.ok(count);
                     }
                 }
                 """,
-                controllerPkg,          // 1
-                basePkg, entity,        // 2, 3 - entity import
-                basePkg, entity,        // 4, 5 - dto import
-                basePkg, entity,        // 6, 7 - service import
-                lower,                  // 8 - request mapping
-                entity,                 // 9 - controller class name
-                entity,                 // 10 - service field type
-                entity, entity,         // 11, 12 - constructor
-                entity,                 // 13 - getAll return type
-                entity, entity,         // 14, 15 - create method
-                entity, idType, entity, // 16, 17, 18 - update method
-                idType,                 // 19 - delete method
-                entity, idType          // 20, 21 - getById method
+                controllerPkg,
+                meta.getPackageName(), entity,
+                basePkg, entity,
+                basePkg, entity,
+                entity,
+                lower,
+                entity,
+                entity,
+                entity, entity,
+                lower,
+                entity, entity,
+                lower,
+                entity, idType, entity,
+                lower,
+                entity, entity, entity,
+                lower,
+                entity, idType, entity, entity,
+                lower,
+                idType,
+                lower,
+                idType,
+                lower
         );
 
         PsiFile file = PsiFileFactory.getInstance(project)

@@ -6,29 +6,38 @@ import com.intellij.psi.*;
 import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
+/**
+ * Generates Spring Data JPA Repository interfaces.
+ */
 public class RepositoryGenerator {
 
     public static void generate(Project project, PsiDirectory root, ClassMeta meta) {
+        if (project == null || root == null || meta == null) {
+            throw new IllegalArgumentException("Project, root directory, and metadata cannot be null");
+        }
 
         String pkg = meta.basePackage() + ".repository";
         PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
 
-        String code = """
+        String code = String.format("""
                 package %s;
-
+                
                 import %s.%s;
                 import org.springframework.data.jpa.repository.JpaRepository;
-
-                public interface %sRepository
-                        extends JpaRepository<%s, %s> {
+                import org.springframework.stereotype.Repository;
+                
+                /**
+                 * Repository interface for %s entity.
+                 */
+                @Repository
+                public interface %sRepository extends JpaRepository<%s, %s> {
                 }
-                """.formatted(
+                """,
                 pkg,
-                meta.getPackageName(),
+                meta.getPackageName(), meta.getClassName(),
                 meta.getClassName(),
                 meta.getClassName(),
-                meta.getClassName(),
-                meta.getIdType()
+                meta.getClassName(), meta.getIdType()
         );
 
         PsiFile file = PsiFileFactory.getInstance(project)
