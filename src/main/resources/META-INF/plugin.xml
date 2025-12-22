@@ -1,18 +1,67 @@
 <idea-plugin>
+    <!-- Unique plugin ID -->
     <id>com.karan.springbootcrud</id>
-    <name>Spring Boot CRUD Generator</name>
-    <vendor email="karansahani723@gmail.com">Karan Sahani</vendor>
 
-    <!-- 🔥 REQUIRED: Java PSI support -->
+    <!-- Plugin name shown in Marketplace -->
+    <name>Spring Boot CRUD Generator</name>
+
+    <!-- Plugin version -->
+    <version>1.0.0</version>
+
+    <!-- Compatible IntelliJ IDEA version -->
+    <idea-version since-build="233"/>
+
+    <!-- Vendor information -->
+    <vendor
+            name="Karan Sahani"
+            email="karansahani723@gmail.com"
+            url="https://github.com/karansahani78"/>
+
+    <!-- Plugin description -->
+    <description>
+        <![CDATA[
+        <p>
+        <b>Spring Boot CRUD Generator</b> is an IntelliJ IDEA plugin that generates
+        <b>production-ready CRUD layers</b> for Spring Boot applications directly
+        from a JPA entity.
+        </p>
+
+        <p><b>Generated components:</b></p>
+        <ul>
+            <li>REST Controller</li>
+            <li>Service Layer</li>
+            <li>Repository</li>
+            <li>DTO</li>
+            <li>Mapper</li>
+        </ul>
+
+        <p>
+        Designed to eliminate boilerplate code and enforce clean backend architecture
+        using IntelliJ PSI-based code generation.
+        </p>
+
+        <p>
+        <b>Author:</b> Karan Sahani<br/>
+        <b>GitHub:</b>
+        <a href="https://github.com/karansahani78">github.com/karansahani78</a><br/>
+        <b>LinkedIn:</b>
+        <a href="https://www.linkedin.com/in/karan-sahani">linkedin.com/in/karan-sahani</a>
+        </p>
+        ]]>
+    </description>
+
+    <!-- Required module -->
     <depends>com.intellij.modules.java</depends>
 
+    <!-- Plugin actions -->
     <actions>
         <action
                 id="GenerateSpringCrud"
                 class="com.karan.intellijplatformplugin.action.GenerateCrudAction"
                 text="Generate Spring Boot CRUD"
-                description="Generate Controller, Service, Repository, DTO">
+                description="Generate Controller, Service, Repository, DTO, Mapper">
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
         </action>
     </actions>
+
 </idea-plugin>
