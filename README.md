@@ -114,5 +114,3 @@ This project demonstrates:
 
 If you find this useful, feel free to ⭐ the repository!
 
-Just say 👍
-```
