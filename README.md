@@ -1,9 +1,14 @@
-
 # 🚀 Spring Boot CRUD Generator (IntelliJ IDEA Plugin)
 
 Spring Boot CRUD Generator is a custom **IntelliJ IDEA plugin** that automatically generates **production-ready CRUD layers** for Spring Boot applications using a JPA entity as the source.
 
 With a single action, developers can eliminate repetitive boilerplate and instantly create a clean backend structure following best practices.
+
+🔌 **JetBrains Marketplace**  
+👉 https://plugins.jetbrains.com/plugin/29476-spring-boot-crud-generator
+
+🎥 **Preview Video (YouTube)**  
+👉 https://youtu.be/T9FjH99KG2s
 
 ---
 
@@ -45,7 +50,7 @@ src/main/java/com/example/app
 
 1. Select a **JPA Entity class** in IntelliJ IDEA  
 2. Right-click and choose **Generate Spring Boot CRUD**  
-3. The plugin analyzes the entity using IntelliJ PSI  
+3. The plugin analyzes the entity using **IntelliJ PSI (Java AST)**  
 4. CRUD layers are generated under `src/main/java`
 
 ---
@@ -54,7 +59,7 @@ src/main/java/com/example/app
 
 - IntelliJ Platform SDK
 - PSI-based code analysis and generation
-- Lifecycle-safe write actions
+- Lifecycle-safe write actions using `WriteCommandAction`
 - Modular generator design
 - Text-block based templates
 - No reflection or runtime dependencies
@@ -66,8 +71,8 @@ src/main/java/com/example/app
 - Java 17
 - Spring Boot
 - IntelliJ Platform SDK
+- PSI (Program Structure Interface / AST)
 - Gradle
-- PSI API
 
 ---
 
@@ -79,7 +84,7 @@ src/main/java/com/example/app
 ./gradlew runIde
 ````
 
-This launches a sandboxed IntelliJ IDEA instance with the plugin installed.
+This launches a **sandboxed IntelliJ IDEA** instance with the plugin installed.
 
 ---
 
@@ -90,6 +95,17 @@ This launches a sandboxed IntelliJ IDEA instance with the plugin installed.
 * Security annotations (`@PreAuthorize`)
 * Template engine support (Velocity / FreeMarker)
 * Overwrite protection and preview before generation
+* Configurable layer selection
+
+---
+
+## 🔗 Useful Links
+
+* 🔌 **JetBrains Marketplace**
+  [https://plugins.jetbrains.com/plugin/29476-spring-boot-crud-generator](https://plugins.jetbrains.com/plugin/29476-spring-boot-crud-generator)
+
+* 🎥 **YouTube Demo**
+  [https://youtu.be/T9FjH99KG2s](https://youtu.be/T9FjH99KG2s)
 
 ---
 
@@ -106,11 +122,12 @@ Java Backend Developer | Spring Boot | IntelliJ Platform Plugins
 
 This project demonstrates:
 
-* Advanced Java backend skills
+* Advanced Java backend engineering
 * IntelliJ IDEA plugin development
-* PSI-based code generation
+* PSI-based source code generation
 * Clean architecture enforcement
 * Real-world developer tooling experience
 
-If you find this useful, feel free to ⭐ the repository!
+If you find this useful, feel free to ⭐ the repository and share feedback.
+More improvements are planned 🚀
 
