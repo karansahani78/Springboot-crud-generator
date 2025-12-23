@@ -7,7 +7,7 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
- * Generates Service layer classes with custom exception handling.
+ * Generates Service layer classes with CRUD operations, pagination, and sorting.
  */
 public class ServiceGenerator {
 
@@ -30,13 +30,17 @@ public class ServiceGenerator {
                 import %s.exception.BadRequestException;
                 import org.slf4j.Logger;
                 import org.slf4j.LoggerFactory;
+                import org.springframework.data.domain.Page;
+                import org.springframework.data.domain.PageRequest;
+                import org.springframework.data.domain.Pageable;
+                import org.springframework.data.domain.Sort;
                 import org.springframework.stereotype.Service;
                 import org.springframework.transaction.annotation.Transactional;
                 
                 import java.util.List;
                 
                 /**
-                 * Service class for %s entity operations with proper exception handling.
+                 * Service class for %s entity operations with pagination and sorting support.
                  */
                 @Service
                 @Transactional(readOnly = true)
@@ -58,7 +62,49 @@ public class ServiceGenerator {
                     }
                 
                     /**
+                     * Retrieves paginated and sorted entities.
+                     * 
+                     * @param page Page number (0-indexed)
+                     * @param size Number of items per page
+                     * @param sortBy Field name to sort by
+                     * @param sortDirection Sort direction (ASC or DESC)
+                     * @return Paginated result
+                     */
+                    public Page<%s> findAllPaginated(int page, int size, String sortBy, String sortDirection) {
+                        log.debug("Finding paginated %s - page: {}, size: {}, sortBy: {}, direction: {}", 
+                                  page, size, sortBy, sortDirection);
+                        
+                        if (page < 0) {
+                            throw new BadRequestException("Page number cannot be negative");
+                        }
+                        
+                        if (size <= 0) {
+                            throw new BadRequestException("Page size must be greater than 0");
+                        }
+                        
+                        if (size > 100) {
+                            log.warn("Page size {} is too large, limiting to 100", size);
+                            size = 100;
+                        }
+                        
+                        Sort.Direction direction = sortDirection.equalsIgnoreCase("DESC") 
+                                ? Sort.Direction.DESC 
+                                : Sort.Direction.ASC;
+                        
+                        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortBy));
+                        
+                        Page<%s> result = repository.findAll(pageable);
+                        log.debug("Found {} entities in page {} of {}", 
+                                  result.getNumberOfElements(), page, result.getTotalPages());
+                        
+                        return result;
+                    }
+                
+                    /**
                      * Retrieves an entity by ID.
+                     * 
+                     * @param id Entity ID
+                     * @return Entity
                      * @throws ResourceNotFoundException if entity not found
                      */
                     public %s findById(%s id) {
@@ -76,6 +122,9 @@ public class ServiceGenerator {
                 
                     /**
                      * Creates a new entity from DTO.
+                     * 
+                     * @param dto Entity DTO
+                     * @return Created entity
                      * @throws BadRequestException if DTO is invalid
                      */
                     @Transactional
@@ -97,6 +146,10 @@ public class ServiceGenerator {
                 
                     /**
                      * Updates an existing entity from DTO.
+                     * 
+                     * @param id Entity ID
+                     * @param dto Entity DTO
+                     * @return Updated entity
                      * @throws ResourceNotFoundException if entity not found
                      * @throws BadRequestException if DTO is invalid
                      */
@@ -126,6 +179,8 @@ public class ServiceGenerator {
                 
                     /**
                      * Deletes an entity by ID.
+                     * 
+                     * @param id Entity ID
                      * @throws ResourceNotFoundException if entity not found
                      * @throws BadRequestException if ID is invalid
                      */
@@ -145,6 +200,9 @@ public class ServiceGenerator {
                 
                     /**
                      * Checks if an entity exists by ID.
+                     * 
+                     * @param id Entity ID
+                     * @return true if exists, false otherwise
                      */
                     public boolean existsById(%s id) {
                         if (id == null) {
@@ -155,6 +213,8 @@ public class ServiceGenerator {
                 
                     /**
                      * Counts all entities.
+                     * 
+                     * @return Total count
                      */
                     public long count() {
                         return repository.count();
@@ -173,6 +233,9 @@ public class ServiceGenerator {
                 meta.getClassName(),
                 meta.getClassName(),
                 meta.getClassName(), meta.getClassName(),
+                meta.getClassName(),
+                meta.getClassName(),
+                meta.getClassName(),
                 meta.getClassName(),
                 meta.getClassName(),
                 meta.getClassName(), meta.getIdType(), meta.getClassName(),

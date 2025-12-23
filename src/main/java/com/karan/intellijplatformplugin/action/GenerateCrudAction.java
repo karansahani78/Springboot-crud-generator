@@ -11,7 +11,7 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
- * Action to generate complete CRUD code with Swagger documentation.
+ * Action to generate complete CRUD code with Swagger documentation and pagination support.
  */
 public class GenerateCrudAction extends AnAction {
 
@@ -76,6 +76,9 @@ public class GenerateCrudAction extends AnAction {
                 SwaggerReadmeGenerator.generate(project, sourceRoot, meta);
                 ApplicationPropertiesGenerator.generate(project, sourceRoot, meta);
 
+                // Generate pagination support
+                PaginationGenerator.generate(project, sourceRoot, meta);
+
                 // Generate exception handling
                 ExceptionGenerator.generate(project, sourceRoot, meta);
                 ErrorResponseGenerator.generate(project, sourceRoot, meta);
@@ -94,18 +97,39 @@ public class GenerateCrudAction extends AnAction {
                     
                     ✓ Swagger Configuration
                     ✓ OpenAPI Documentation
+                    ✓ Pagination Support (PageResponse, SortDirection)
                     ✓ Custom Exceptions
                     ✓ Error Response DTO
                     ✓ Global Exception Handler
                     ✓ DTO with Schema Annotations
                     ✓ Mapper
                     ✓ Repository
-                    ✓ Service
-                    ✓ Controller with API Docs
-                    ✓ Swagger Setup README
+                    ✓ Service (with pagination)
+                    ✓ Controller (with paginated endpoint)
+                    ✓ API Setup README
+                    
+                    📄 Endpoints:
+                    • GET /api/%s - Get all (unpaginated)
+                    • GET /api/%s/paginated - Get paginated & sorted
+                    • GET /api/%s/{id} - Get by ID
+                    • POST /api/%s - Create
+                    • PUT /api/%s/{id} - Update
+                    • DELETE /api/%s/{id} - Delete
+                    • HEAD /api/%s/{id} - Check exists
+                    • GET /api/%s/count - Count all
                     
                     Access Swagger UI at: http://localhost:8080/swagger-ui.html
-                    """, meta.getClassName());
+                    """,
+                    meta.getClassName(),
+                    meta.getClassName().toLowerCase(),
+                    meta.getClassName().toLowerCase(),
+                    meta.getClassName().toLowerCase(),
+                    meta.getClassName().toLowerCase(),
+                    meta.getClassName().toLowerCase(),
+                    meta.getClassName().toLowerCase(),
+                    meta.getClassName().toLowerCase(),
+                    meta.getClassName().toLowerCase()
+            );
 
             Messages.showInfoMessage(project, message, "Spring Boot CRUD Generator");
 
@@ -115,6 +139,7 @@ public class GenerateCrudAction extends AnAction {
                     "Failed to generate CRUD code: " + ex.getMessage(),
                     "Generation Error"
             );
+            ex.printStackTrace(); // Print stack trace for debugging
         }
     }
 

@@ -7,7 +7,7 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
- * Generates REST Controller classes with OpenAPI 3.0 documentation.
+ * Generates REST Controller classes with OpenAPI 3.0 documentation and pagination support.
  */
 public class ControllerGenerator {
 
@@ -32,6 +32,7 @@ public class ControllerGenerator {
                 import %s.%s;
                 import %s.dto.%sDto;
                 import %s.dto.ErrorResponse;
+                import %s.dto.PageResponse;
                 import %s.service.%sService;
                 import io.swagger.v3.oas.annotations.Operation;
                 import io.swagger.v3.oas.annotations.Parameter;
@@ -43,6 +44,7 @@ public class ControllerGenerator {
                 import jakarta.validation.Valid;
                 import org.slf4j.Logger;
                 import org.slf4j.LoggerFactory;
+                import org.springframework.data.domain.Page;
                 import org.springframework.http.HttpStatus;
                 import org.springframework.http.ResponseEntity;
                 import org.springframework.web.bind.annotation.*;
@@ -50,7 +52,7 @@ public class ControllerGenerator {
                 import java.util.List;
                 
                 /**
-                 * REST Controller for %s entity operations.
+                 * REST Controller for %s entity operations with pagination support.
                  */
                 @RestController
                 @RequestMapping("/api/%s")
@@ -66,7 +68,7 @@ public class ControllerGenerator {
                 
                     @Operation(
                             summary = "Get all %s",
-                            description = "Retrieve a list of all %s entities"
+                            description = "Retrieve a list of all %s entities (unpaginated)"
                     )
                     @ApiResponses(value = {
                             @ApiResponse(
@@ -91,6 +93,52 @@ public class ControllerGenerator {
                         log.debug("GET /api/%s - Retrieving all entities");
                         List<%s> entities = service.findAll();
                         return ResponseEntity.ok(entities);
+                    }
+                
+                    @Operation(
+                            summary = "Get paginated %s",
+                            description = "Retrieve paginated and sorted list of %s entities"
+                    )
+                    @ApiResponses(value = {
+                            @ApiResponse(
+                                    responseCode = "200",
+                                    description = "Successfully retrieved paginated list",
+                                    content = @Content(
+                                            mediaType = "application/json",
+                                            schema = @Schema(implementation = PageResponse.class)
+                                    )
+                            ),
+                            @ApiResponse(
+                                    responseCode = "400",
+                                    description = "Invalid pagination parameters",
+                                    content = @Content(
+                                            mediaType = "application/json",
+                                            schema = @Schema(implementation = ErrorResponse.class)
+                                    )
+                            )
+                    })
+                    @GetMapping("/paginated")
+                    public ResponseEntity<PageResponse<%s>> getAllPaginated(
+                            @Parameter(description = "Page number (0-indexed)", example = "0")
+                            @RequestParam(defaultValue = "0") int page,
+                            
+                            @Parameter(description = "Page size (max 100)", example = "10")
+                            @RequestParam(defaultValue = "10") int size,
+                            
+                            @Parameter(description = "Sort field", example = "id")
+                            @RequestParam(defaultValue = "id") String sortBy,
+                            
+                            @Parameter(description = "Sort direction (ASC/DESC)", example = "ASC")
+                            @RequestParam(defaultValue = "ASC") String sortDirection
+                    ) {
+                        log.debug("GET /api/%s/paginated - page: {}, size: {}, sortBy: {}, direction: {}", 
+                                  page, size, sortBy, sortDirection);
+                        
+                        Page<%s> pageResult = service.findAllPaginated(page, size, sortBy, sortDirection);
+                        PageResponse<%s> response = PageResponse.of(pageResult);
+                        
+                        log.debug("Returning page {} with {} items", page, response.getContent().size());
+                        return ResponseEntity.ok(response);
                     }
                 
                     @Operation(
@@ -296,65 +344,72 @@ public class ControllerGenerator {
                     }
                 }
                 """,
-                controllerPkg,
-                entityPackage, entity,
-                basePkg, entity,
-                basePkg,
-                basePkg, entity,
-                entity,
-                lower,
-                entity, entity,
-                entity,
-                entity,
-                entity,
-                entity, entity,
-                entity, entity,
-                entity,
-                entity,
-                lower,
-                entity,
-                entity, entity,
-                entity,
-                entity,
-                entity,
-                entity,
-                idType,
-                lower,
-                entity,
-                entity, entity,
-                entity,
-                entity,
-                entity,
-                entity,
-                entity,
-                entity,
-                lower,
-                entity,
-                entity, entity,
-                entity,
-                entity,
-                entity,
-                entity,
-                entity,
-                idType,
-                entity,
-                entity,
-                lower,
-                entity,
-                entity, entity,
-                entity,
-                entity,
-                entity,
-                idType,
-                lower,
-                entity, entity,
-                entity,
-                entity,
-                entity,
-                idType,
-                lower,
-                entity, entity,
-                lower
+                // Format arguments (total: 88)
+                controllerPkg,                          // 1
+                entityPackage, entity,                  // 2, 3
+                basePkg, entity,                        // 4, 5
+                basePkg,                                // 6
+                basePkg,                                // 7 - PageResponse import
+                basePkg, entity,                        // 8, 9
+                entity,                                 // 10
+                lower,                                  // 11
+                entity, entity,                         // 12, 13
+                entity,                                 // 14
+                entity,                                 // 15
+                entity,                                 // 16
+                entity, entity,                         // 17, 18
+                entity, entity,                         // 19, 20
+                entity,                                 // 21
+                entity,                                 // 22
+                lower,                                  // 23
+                entity,                                 // 24
+                entity, entity,                         // 25, 26
+                entity,                                 // 27 - paginated return type
+                lower,                                  // 28
+                entity,                                 // 29 - Page<Entity>
+                entity,                                 // 30 - PageResponse<Entity>
+                entity, entity,                         // 31, 32
+                entity,                                 // 33
+                entity,                                 // 34
+                entity,                                 // 35
+                entity,                                 // 36
+                idType,                                 // 37
+                lower,                                  // 38
+                entity,                                 // 39
+                entity, entity,                         // 40, 41
+                entity,                                 // 42
+                entity,                                 // 43
+                entity,                                 // 44
+                entity,                                 // 45
+                entity,                                 // 46
+                entity,                                 // 47
+                lower,                                  // 48
+                entity,                                 // 49
+                entity, entity,                         // 50, 51
+                entity,                                 // 52
+                entity,                                 // 53
+                entity,                                 // 54
+                entity,                                 // 55
+                entity,                                 // 56
+                idType,                                 // 57
+                entity,                                 // 58
+                entity,                                 // 59
+                lower,                                  // 60
+                entity,                                 // 61
+                entity, entity,                         // 62, 63
+                entity,                                 // 64
+                entity,                                 // 65
+                entity,                                 // 66
+                idType,                                 // 67
+                lower,                                  // 68
+                entity, entity,                         // 69, 70
+                entity,                                 // 71
+                entity,                                 // 72
+                entity,                                 // 73
+                idType,                                 // 74
+                lower,                                  // 75
+                entity, entity,                         // 76, 77
+                lower                                   // 78
         );
 
         PsiFile file = PsiFileFactory.getInstance(project)
