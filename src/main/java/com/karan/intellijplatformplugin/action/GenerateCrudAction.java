@@ -19,7 +19,6 @@ public class GenerateCrudAction extends AnAction {
         Project project = e.getProject();
         PsiFile file = e.getData(CommonDataKeys.PSI_FILE);
 
-        // Validate project and file
         if (project == null) {
             Messages.showErrorDialog("No project found", "Error");
             return;
@@ -46,7 +45,6 @@ public class GenerateCrudAction extends AnAction {
 
         PsiClass psiClass = classes[0];
 
-        // Validate that it's an entity
         if (!isEntity(psiClass)) {
             int result = Messages.showYesNoDialog(
                     project,
@@ -60,10 +58,8 @@ public class GenerateCrudAction extends AnAction {
         }
 
         try {
-            // Extract metadata
             ClassMeta meta = PsiDirectoryUtil.toClassMeta(psiClass);
 
-            // Find source root
             PsiDirectory sourceRoot = PsiDirectoryUtil.getSourceRoot(file);
             if (sourceRoot == null) {
                 Messages.showErrorDialog(
@@ -73,37 +69,20 @@ public class GenerateCrudAction extends AnAction {
                 return;
             }
 
-            // Generate all CRUD components
             WriteCommandAction.runWriteCommandAction(project, () -> {
-                try {
-                    DtoGenerator.generate(project, sourceRoot, meta);
-                    MapperGenerator.generate(project, sourceRoot, meta);
-                    RepositoryGenerator.generate(project, sourceRoot, meta);
-                    ServiceGenerator.generate(project, sourceRoot, meta);
-                    ControllerGenerator.generate(project, sourceRoot, meta);
-                } catch (Exception ex) {
-                    throw new RuntimeException("Error generating CRUD code: " + ex.getMessage(), ex);
-                }
+                DtoGenerator.generate(project, sourceRoot, meta);
+                MapperGenerator.generate(project, sourceRoot, meta);
+                RepositoryGenerator.generate(project, sourceRoot, meta);
+                ServiceGenerator.generate(project, sourceRoot, meta);
+                ControllerGenerator.generate(project, sourceRoot, meta);
             });
 
-            // Show success message
             Messages.showInfoMessage(
                     project,
-                    "Successfully generated CRUD code for " + meta.getClassName() + ":\n\n" +
-                            "✓ DTO\n" +
-                            "✓ Mapper\n" +
-                            "✓ Repository\n" +
-                            "✓ Service\n" +
-                            "✓ Controller",
+                    "Successfully generated CRUD code for " + meta.getClassName(),
                     "Spring Boot CRUD Generator"
             );
 
-        } catch (IllegalArgumentException ex) {
-            Messages.showErrorDialog(
-                    project,
-                    "Invalid class structure: " + ex.getMessage(),
-                    "Generation Error"
-            );
         } catch (Exception ex) {
             Messages.showErrorDialog(
                     project,
@@ -113,12 +92,30 @@ public class GenerateCrudAction extends AnAction {
         }
     }
 
+    /**
+     * FIXED: makes the action visible in BOTH Editor and Project View
+     */
     @Override
     public void update(AnActionEvent e) {
-        // Enable action only when a Java file is selected
-        PsiFile file = e.getData(CommonDataKeys.PSI_FILE);
-        boolean enabled = file instanceof PsiJavaFile;
-        e.getPresentation().setEnabledAndVisible(enabled);
+        Presentation presentation = e.getPresentation();
+
+        PsiElement element = e.getData(CommonDataKeys.PSI_ELEMENT);
+        PsiJavaFile javaFile = null;
+
+        if (element instanceof PsiJavaFile) {
+            javaFile = (PsiJavaFile) element;
+        } else if (element instanceof PsiClass) {
+            PsiFile containingFile = element.getContainingFile();
+            if (containingFile instanceof PsiJavaFile) {
+                javaFile = (PsiJavaFile) containingFile;
+            }
+        }
+
+        boolean enabled =
+                javaFile != null &&
+                        javaFile.getClasses().length > 0;
+
+        presentation.setEnabledAndVisible(enabled);
     }
 
     /**

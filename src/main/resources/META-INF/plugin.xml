@@ -1,18 +1,14 @@
 <idea-plugin>
 
-    <!-- Unique plugin ID -->
     <id>com.karan.springbootcrud</id>
 
-    <!-- Plugin name shown in Marketplace -->
     <name>Spring Boot CRUD Generator</name>
 
-    <!-- Plugin version -->
-    <version>1.0.0</version>
+    <version>1.0.2</version>
 
-    <!-- Compatible IntelliJ IDEA version (2023.3+) -->
-    <idea-version since-build="233"/>
+    <!-- Compatible with IntelliJ IDEA 2023.3 and above -->
+    <idea-version since-build="233" until-build="253.*"/>
 
-    <!-- Vendor information (MUST have inner text) -->
     <vendor
             name="Karan Sahani"
             email="karansahani723@gmail.com"
@@ -20,51 +16,84 @@
         Karan Sahani
     </vendor>
 
-    <!-- Plugin description -->
     <description><![CDATA[
         <p>
-            <b>Spring Boot CRUD Generator</b> is an IntelliJ IDEA plugin that generates
-            <b>production-ready CRUD layers</b> for Spring Boot applications directly
-            from a JPA entity.
+            <b>Spring Boot CRUD Generator</b> generates
+            <b>production-ready CRUD layers</b> for Spring Boot applications
+            directly from a JPA entity.
         </p>
 
-        <p><b>Generated components:</b></p>
         <ul>
-            <li>REST Controller</li>
-            <li>Service Layer</li>
-            <li>Repository (JPA)</li>
-            <li>DTO</li>
-            <li>Mapper</li>
+            <li><b>REST Controller</b> - Complete CRUD endpoints with proper HTTP methods</li>
+            <li><b>Service Layer</b> - Transaction management and business logic</li>
+            <li><b>Repository</b> - Spring Data JPA repository interface</li>
+            <li><b>DTO</b> - Data Transfer Objects with validation annotations</li>
+            <li><b>Mapper</b> - Entity-DTO conversion utilities</li>
         </ul>
 
         <p>
-            The plugin helps backend developers eliminate repetitive boilerplate code
-            and follow a clean, layered architecture using
-            <b>IntelliJ PSI-based code generation</b>.
+            Eliminates repetitive CRUD boilerplate and enforces a clean,
+            layered backend architecture using IntelliJ PSI-based code generation.
         </p>
 
-        <p>
-            <b>Author:</b> Karan Sahani<br/>
-            <b>GitHub:</b>
-            <a href="https://github.com/karansahani78">github.com/karansahani78</a><br/>
-            <b>LinkedIn:</b>
-            <a href="https://www.linkedin.com/in/karan-sahani">
-                linkedin.com/in/karan-sahani
-            </a>
-        </p>
+        <h3>Features</h3>
+        <ul>
+            <li>Generate complete CRUD layer from any JPA entity</li>
+            <li>Supports Jakarta and Javax persistence annotations</li>
+            <li>Automatic field mapping with proper getters/setters</li>
+            <li>REST API with standard HTTP methods (GET, POST, PUT, DELETE)</li>
+            <li>Transaction-aware service layer</li>
+            <li>Input validation using Jakarta Bean Validation</li>
+        </ul>
+
+        <h3>Usage</h3>
+        <ol>
+            <li>Right-click on any JPA entity class in the editor</li>
+            <li>Select <b>"Generate Spring Boot CRUD"</b></li>
+            <li>All layers will be generated automatically in appropriate packages</li>
+        </ol>
+
+        <h3>Generated Structure</h3>
+        <pre>
+        com.example.yourapp
+        ├── entity (your existing entity)
+        ├── dto (generated DTOs)
+        ├── mapper (generated mappers)
+        ├── repository (generated repositories)
+        ├── service (generated services)
+        └── controller (generated controllers)
+        </pre>
     ]]></description>
 
-    <!-- Required IntelliJ module -->
+    <change-notes><![CDATA[
+        <h3>Version 1.0.2</h3>
+        <ul>
+            <li>Fixed DTO generation with proper toString() implementation</li>
+            <li>Enhanced mapper with proper field mapping</li>
+            <li>Added comprehensive logging in service layer</li>
+            <li>Improved compatibility range (2023.3 through 2025.3)</li>
+            <li>Better error handling and validation</li>
+        </ul>
+
+        <h3>Version 1.0.1</h3>
+        <ul>
+            <li>Initial release</li>
+            <li>Complete CRUD generation from JPA entities</li>
+            <li>Support for custom ID types</li>
+        </ul>
+    ]]></change-notes>
+
     <depends>com.intellij.modules.java</depends>
 
-    <!-- Plugin action -->
     <actions>
         <action
                 id="GenerateSpringCrud"
                 class="com.karan.intellijplatformplugin.action.GenerateCrudAction"
                 text="Generate Spring Boot CRUD"
-                description="Generate Controller, Service, Repository, DTO, and Mapper">
+                description="Generate Controller, Service, Repository, DTO, and Mapper"
+                icon="AllIcons.Actions.Lightning">
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
         </action>
     </actions>
 
