@@ -4,6 +4,7 @@ import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import com.karan.intellijplatformplugin.generator.*;
 import com.karan.intellijplatformplugin.model.ClassMeta;
@@ -93,21 +94,45 @@ public class GenerateCrudAction extends AnAction {
     }
 
     /**
-     * FIXED: makes the action visible in BOTH Editor and Project View
+     * FINAL FIX:
+     * Makes the action visible in IntelliJ IDEA Ultimate + SDK
+     * for both Editor and Project View.
      */
     @Override
     public void update(AnActionEvent e) {
         Presentation presentation = e.getPresentation();
+        Project project = e.getProject();
 
-        PsiElement element = e.getData(CommonDataKeys.PSI_ELEMENT);
         PsiJavaFile javaFile = null;
 
-        if (element instanceof PsiJavaFile) {
-            javaFile = (PsiJavaFile) element;
-        } else if (element instanceof PsiClass) {
-            PsiFile containingFile = element.getContainingFile();
-            if (containingFile instanceof PsiJavaFile) {
-                javaFile = (PsiJavaFile) containingFile;
+        // 1️⃣ Editor context
+        PsiFile psiFile = e.getData(CommonDataKeys.PSI_FILE);
+        if (psiFile instanceof PsiJavaFile) {
+            javaFile = (PsiJavaFile) psiFile;
+        }
+
+        // 2️⃣ Project View PSI context
+        if (javaFile == null) {
+            PsiElement element = e.getData(CommonDataKeys.PSI_ELEMENT);
+            if (element instanceof PsiJavaFile) {
+                javaFile = (PsiJavaFile) element;
+            } else if (element instanceof PsiClass) {
+                PsiFile containingFile = element.getContainingFile();
+                if (containingFile instanceof PsiJavaFile) {
+                    javaFile = (PsiJavaFile) containingFile;
+                }
+            }
+        }
+
+        // 3️⃣ IntelliJ Ultimate fallback (VirtualFile-based)
+        if (javaFile == null && project != null) {
+            VirtualFile vf = e.getData(CommonDataKeys.VIRTUAL_FILE);
+            if (vf != null) {
+                PsiFile fileFromVf =
+                        PsiManager.getInstance(project).findFile(vf);
+                if (fileFromVf instanceof PsiJavaFile) {
+                    javaFile = (PsiJavaFile) fileFromVf;
+                }
             }
         }
 
