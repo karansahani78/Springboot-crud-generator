@@ -11,7 +11,7 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
- * Action to generate complete CRUD code with Swagger, pagination, and auditing support.
+ * Action to generate complete CRUD code with optional security.
  */
 public class GenerateCrudAction extends AnAction {
 
@@ -58,6 +58,35 @@ public class GenerateCrudAction extends AnAction {
             }
         }
 
+        // Ask user if they want to include Spring Security
+        int securityChoice = Messages.showYesNoCancelDialog(
+                project,
+                """
+                Do you want to include Spring Security with JWT authentication?
+                
+                This will generate:
+                • JWT-based authentication
+                • User registration endpoint (/api/auth/register)
+                • User login endpoint (/api/auth/login)
+                • Role-based authorization (USER, ADMIN, MODERATOR)
+                • Password encryption with BCrypt
+                • Protected API endpoints
+                
+                Note: You'll need to add Spring Security & JWT dependencies.
+                """,
+                "Include Spring Security?",
+                "Yes, Include Security",
+                "No, Skip Security",
+                "Cancel",
+                Messages.getQuestionIcon()
+        );
+
+        if (securityChoice == Messages.CANCEL) {
+            return;
+        }
+
+        boolean includeSecurity = (securityChoice == Messages.YES);
+
         try {
             ClassMeta meta = PsiDirectoryUtil.toClassMeta(psiClass);
 
@@ -72,13 +101,28 @@ public class GenerateCrudAction extends AnAction {
 
             WriteCommandAction.runWriteCommandAction(project, () -> {
                 // Generate Swagger/OpenAPI documentation
-                SwaggerConfigGenerator.generate(project, sourceRoot, meta);
+                SwaggerConfigGenerator.generate(project, sourceRoot, meta, includeSecurity); // ✅ FIXED: Added includeSecurity parameter
                 SwaggerReadmeGenerator.generate(project, sourceRoot, meta);
-                ApplicationPropertiesGenerator.generate(project, sourceRoot, meta);
+                ApplicationPropertiesGenerator.generate(project, sourceRoot, meta, includeSecurity);
 
-                // Generate auditing support
+                // Generate Spring Security (OPTIONAL)
+                if (includeSecurity) {
+                    SecurityConfigGenerator.generate(project, sourceRoot, meta);
+                    JwtServiceGenerator.generate(project, sourceRoot, meta);
+                    JwtAuthenticationFilterGenerator.generate(project, sourceRoot, meta);
+                    UserEntityGenerator.generate(project, sourceRoot, meta);
+                    RoleEnumGenerator.generate(project, sourceRoot, meta);
+                    AppUserRepositoryGenerator.generate(project, sourceRoot, meta);
+                    UserDetailsServiceImplGenerator.generate(project, sourceRoot, meta);
+                    AuthenticationServiceGenerator.generate(project, sourceRoot, meta);
+                    AuthControllerGenerator.generate(project, sourceRoot, meta);
+                    AuthDtoGenerator.generate(project, sourceRoot, meta);
+                    SecurityReadmeGenerator.generate(project, sourceRoot, meta);
+                }
+
+                // Generate auditing support (integrated with Security if enabled)
                 BaseAuditEntityGenerator.generate(project, sourceRoot, meta);
-                JpaAuditingConfigGenerator.generate(project, sourceRoot, meta);
+                JpaAuditingConfigGenerator.generate(project, sourceRoot, meta, includeSecurity);
                 AuditingReadmeGenerator.generate(project, sourceRoot, meta);
 
                 // Generate pagination support
@@ -97,42 +141,60 @@ public class GenerateCrudAction extends AnAction {
                 ControllerGenerator.generate(project, sourceRoot, meta);
             });
 
+            // Build success message based on what was generated
+            String securityMessage = includeSecurity ? """
+                    
+                    🔒 Security Components:
+                    ✓ Spring Security Configuration (JWT)
+                    ✓ Authentication Controller (Register/Login)
+                    ✓ JWT Service & Filter
+                    ✓ User Entity with Roles
+                    ✓ User Repository & UserDetailsService
+                    ✓ Security Setup Guide
+                    
+                    📄 Public Endpoints:
+                    • POST /api/auth/register - Register new user
+                    • POST /api/auth/login - Login
+                    
+                    🔒 Protected Endpoints (requires JWT token):
+                    """ : """
+                    
+                    📄 API Endpoints (No Authentication):
+                    """;
+
             String message = String.format("""
                     Successfully generated CRUD code for %s:
                     
                     ✓ Swagger Configuration
                     ✓ OpenAPI Documentation
-                    ✓ JPA Auditing (BaseAuditEntity, Config)
+                    ✓ JPA Auditing (CreatedAt, UpdatedAt, CreatedBy, UpdatedBy)
                     ✓ Pagination Support (PageResponse, SortDirection)
                     ✓ Custom Exceptions
                     ✓ Error Response DTO
                     ✓ Global Exception Handler
-                    ✓ DTO with Schema Annotations
+                    ✓ DTO with Validation
                     ✓ Mapper
                     ✓ Repository
                     ✓ Service (with pagination)
                     ✓ Controller (with paginated endpoint)
-                    ✓ API Setup README
-                    ✓ Auditing Guide
-                    
-                    📄 Endpoints:
-                    • GET /api/%s - Get all (unpaginated)
+                    ✓ Complete Documentation
+                    %s
+                    • GET /api/%s - Get all
                     • GET /api/%s/paginated - Get paginated & sorted
                     • GET /api/%s/{id} - Get by ID
-                    • POST /api/%s - Create (auto-tracks createdAt/createdBy)
-                    • PUT /api/%s/{id} - Update (auto-tracks updatedAt/updatedBy)
+                    • POST /api/%s - Create
+                    • PUT /api/%s/{id} - Update
                     • DELETE /api/%s/{id} - Delete
                     • HEAD /api/%s/{id} - Check exists
                     • GET /api/%s/count - Count all
                     
                     📝 Next Steps:
-                    1. Make your entity extend BaseAuditEntity
-                    2. Add @EnableJpaAuditing to your main class (already in JpaAuditingConfig)
-                    3. Check AUDITING_GUIDE.md for Spring Security integration
+                    %s
                     
                     Access Swagger UI at: http://localhost:8080/swagger-ui.html
                     """,
                     meta.getClassName(),
+                    securityMessage,
                     meta.getClassName().toLowerCase(),
                     meta.getClassName().toLowerCase(),
                     meta.getClassName().toLowerCase(),
@@ -140,7 +202,15 @@ public class GenerateCrudAction extends AnAction {
                     meta.getClassName().toLowerCase(),
                     meta.getClassName().toLowerCase(),
                     meta.getClassName().toLowerCase(),
-                    meta.getClassName().toLowerCase()
+                    meta.getClassName().toLowerCase(),
+                    includeSecurity ?
+                            "1. Add Spring Security & JWT dependencies to pom.xml\n" +
+                                    "    2. Check SECURITY_GUIDE.md for complete setup\n" +
+                                    "    3. Register a user at /api/auth/register\n" +
+                                    "    4. Use the token in Authorization header" :
+                            "1. Your endpoints are publicly accessible\n" +
+                                    "    2. Consider adding security later if needed\n" +
+                                    "    3. Check generated documentation"
             );
 
             Messages.showInfoMessage(project, message, "Spring Boot CRUD Generator");

@@ -34,6 +34,7 @@
             <li><b>Swagger/OpenAPI</b> - Complete API documentation with Springdoc</li>
             <li><b>Pagination</b> - Page-based results with sorting support</li>
             <li><b>JPA Auditing</b> - Automatic tracking of created/modified timestamps and users</li>
+            <li><b>JWT Security (Optional)</b> - Role-based authentication & authorization using Spring Security</li>
         </ul>
 
         <h3>Generated Components</h3>
@@ -48,6 +49,7 @@
             <li>✓ Entity DTOs with @Schema annotations</li>
             <li>✓ Service methods with pagination</li>
             <li>✓ Controller endpoints with full Swagger docs</li>
+            <li>✓ Optional JWT authentication module with role-based access (USER, ADMIN, etc.)</li>
             <li>✓ Complete API documentation markdown files</li>
         </ul>
 
@@ -68,6 +70,7 @@
             <li>Right-click on any JPA entity class in the editor</li>
             <li>Select <b>"Generate Spring Boot CRUD"</b></li>
             <li>All layers will be generated automatically in appropriate packages</li>
+            <li>JWT Security is <b>optional</b> and can be enabled only if required</li>
             <li>Access Swagger UI at http://localhost:8080/swagger-ui.html</li>
         </ol>
 
@@ -75,29 +78,25 @@
         <pre>
         com.example.yourapp
         ├── config
-        │   ├── OpenApiConfig.java (Swagger configuration)
-        │   └── JpaAuditingConfig.java (Auditing setup)
+        │   ├── OpenApiConfig.java
+        │   ├── JpaAuditingConfig.java
+        │   └── SecurityConfig.java (optional JWT)
         ├── entity
-        │   ├── BaseAuditEntity.java (Audit base class)
-        │   └── YourEntity.java (your existing entity)
+        │   ├── BaseAuditEntity.java
+        │   ├── AppUser.java (JWT User entity)
+        │   └── YourEntity.java
         ├── dto
-        │   ├── YourEntityDto.java (DTO)
-        │   ├── ErrorResponse.java (Error structure)
-        │   ├── PageResponse.java (Pagination wrapper)
-        │   └── SortDirection.java (Sort enum)
+        │   ├── YourEntityDto.java
+        │   ├── AuthenticationRequest.java
+        │   ├── AuthenticationResponse.java
+        │   └── RegisterRequest.java
         ├── mapper
-        │   └── YourEntityMapper.java (Entity-DTO mapping)
         ├── repository
-        │   └── YourEntityRepository.java (JPA repository)
         ├── service
-        │   └── YourEntityService.java (Business logic + pagination)
         ├── controller
-        │   └── YourEntityController.java (REST endpoints)
+        │   ├── AuthenticationController.java
+        │   └── YourEntityController.java
         └── exception
-            ├── ResourceNotFoundException.java
-            ├── BadRequestException.java
-            ├── DuplicateResourceException.java
-            └── GlobalExceptionHandler.java
         </pre>
 
         <h3>Requirements</h3>
@@ -106,6 +105,7 @@
             <li>Java 17+</li>
             <li>Spring Data JPA</li>
             <li>Spring Web</li>
+            <li>Spring Security (only if JWT is enabled)</li>
             <li>Bean Validation</li>
         </ul>
 
@@ -113,50 +113,26 @@
         <ul>
             <li>Supports both Jakarta and Javax persistence annotations</li>
             <li>Works with any JPA entity</li>
+            <li>JWT security is fully optional and non-intrusive</li>
             <li>Compatible with PostgreSQL, MySQL, H2, and other databases</li>
             <li>IntelliJ IDEA 2023.3 through 2025.3</li>
         </ul>
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>Version 1.0.5</h3>
+        <ul>
+            <li><b>NEW:</b> Optional JWT-based security support</li>
+            <li>Role-based authorization (USER, ADMIN, etc.)</li>
+            <li>Authentication & registration endpoints</li>
+            <li>JWT integration designed to be optional and customizable</li>
+        </ul>
+
         <h3>Version 1.0.4</h3>
         <ul>
-            <li><b>NEW:</b> JPA Auditing support with BaseAuditEntity</li>
-            <li><b>NEW:</b> Automatic tracking of CreatedAt, UpdatedAt, CreatedBy, UpdatedBy</li>
-            <li><b>NEW:</b> JpaAuditingConfig with Spring Security integration guide</li>
-            <li><b>NEW:</b> Pagination and sorting support</li>
-            <li><b>NEW:</b> PageResponse wrapper for paginated results</li>
-            <li><b>NEW:</b> GET /api/{entity}/paginated endpoint with query parameters</li>
-            <li><b>NEW:</b> Swagger/OpenAPI 3.0 integration with Springdoc</li>
-            <li><b>NEW:</b> Complete API documentation with @Operation, @Schema annotations</li>
-            <li><b>NEW:</b> Custom exception classes (ResourceNotFoundException, BadRequestException, DuplicateResourceException)</li>
-            <li><b>NEW:</b> GlobalExceptionHandler with @ControllerAdvice</li>
-            <li><b>NEW:</b> ErrorResponse DTO with standardized error structure</li>
-            <li><b>NEW:</b> Comprehensive README files (API_DOCUMENTATION.md, AUDITING_GUIDE.md)</li>
-            <li>Enhanced service layer with validation and detailed logging</li>
-            <li>Improved DTO generation with proper getters/setters</li>
-            <li>Fixed mapper with reliable BeanUtils.copyProperties()</li>
-            <li>Better error handling throughout all layers</li>
-            <li>Production-ready code with transaction management</li>
-        </ul>
-
-        <h3>Version 1.0.3</h3>
-        <ul>
-            <li>Fixed OpenAPI configuration compatibility</li>
-            <li>Updated to work with Spring Boot 3.2.0</li>
-        </ul>
-
-        <h3>Version 1.0.2</h3>
-        <ul>
-            <li>Fixed DTO toString() generation</li>
-            <li>Enhanced field mapping</li>
-        </ul>
-
-        <h3>Version 1.0.1</h3>
-        <ul>
-            <li>Initial release</li>
-            <li>Basic CRUD generation from JPA entities</li>
-            <li>Support for custom ID types</li>
+            <li>JPA Auditing support with BaseAuditEntity</li>
+            <li>Pagination and sorting support</li>
+            <li>Swagger/OpenAPI integration</li>
         </ul>
     ]]></change-notes>
 
@@ -168,7 +144,7 @@
                 id="GenerateSpringCrud"
                 class="com.karan.intellijplatformplugin.action.GenerateCrudAction"
                 text="Generate Spring Boot CRUD"
-                description="Generate complete CRUD layer with Swagger, Pagination, Auditing, and Exception Handling"
+                description="Generate complete CRUD layer with Swagger, Pagination, Auditing, Exception Handling, and optional JWT Security"
                 icon="AllIcons.Actions.Lightning">
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>

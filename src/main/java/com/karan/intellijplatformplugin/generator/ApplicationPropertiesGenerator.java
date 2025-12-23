@@ -8,11 +8,11 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import java.io.IOException;
 
 /**
- * Updates application.properties with Springdoc OpenAPI configuration.
+ * Updates application.properties with configurations.
  */
 public class ApplicationPropertiesGenerator {
 
-    public static void generate(Project project, PsiDirectory root, ClassMeta meta) {
+    public static void generate(Project project, PsiDirectory root, ClassMeta meta, boolean includeSecurity) {
         if (project == null || root == null || meta == null) {
             return;
         }
@@ -23,21 +23,31 @@ public class ApplicationPropertiesGenerator {
                 return;
             }
 
-            String openApiProperties = """
+            String configurations = """
                     
                     # ========================================
                     # Springdoc OpenAPI Configuration
                     # ========================================
-                    # Access Swagger UI at: http://localhost:${server.port}/swagger-ui.html
-                    # Access OpenAPI JSON at: http://localhost:${server.port}/v3/api-docs
-                    
                     springdoc.api-docs.path=/v3/api-docs
                     springdoc.swagger-ui.path=/swagger-ui.html
                     springdoc.swagger-ui.enabled=true
                     springdoc.swagger-ui.operations-sorter=method
                     springdoc.swagger-ui.tags-sorter=alpha
-                    springdoc.swagger-ui.doc-expansion=none
                     """;
+
+            // Add JWT configuration only if security is enabled
+            if (includeSecurity) {
+                configurations += """
+                        
+                        # ========================================
+                        # JWT Configuration
+                        # ========================================
+                        jwt.secret-key=404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+                        jwt.expiration=86400000
+                        # Note: Change secret key in production! Generate with: openssl rand -base64 32
+                        # Expiration time in milliseconds (86400000 = 24 hours)
+                        """;
+            }
 
             PsiFile existingFile = resourcesDir.findFile("application.properties");
 
@@ -46,18 +56,19 @@ public class ApplicationPropertiesGenerator {
                 if (virtualFile != null && virtualFile.isWritable()) {
                     String currentContent = new String(virtualFile.contentsToByteArray());
 
+                    // Only add if not already present
                     if (!currentContent.contains("Springdoc OpenAPI Configuration")) {
-                        String newContent = currentContent + openApiProperties;
+                        String newContent = currentContent + configurations;
                         virtualFile.setBinaryContent(newContent.getBytes());
                     }
                 }
             } else {
                 PsiFile file = PsiFileFactory.getInstance(project)
-                        .createFileFromText("application.properties", openApiProperties);
+                        .createFileFromText("application.properties", configurations);
                 resourcesDir.add(file);
             }
         } catch (IOException e) {
-            // Silently fail - not critical
+            // Silently fail
         }
     }
 

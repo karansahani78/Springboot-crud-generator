@@ -7,17 +7,53 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
- * Generates OpenAPI 3.0 configuration (Springdoc) with proper server setup.
+ * Generates OpenAPI 3.0 configuration (Springdoc) with optional JWT security.
  */
 public class SwaggerConfigGenerator {
 
-    public static void generate(Project project, PsiDirectory root, ClassMeta meta) {
+    public static void generate(Project project, PsiDirectory root, ClassMeta meta, boolean includeSecurity) {
         if (project == null || root == null || meta == null) {
             throw new IllegalArgumentException("Project, root directory, and metadata cannot be null");
         }
 
         String pkg = meta.basePackage() + ".config";
         PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
+
+        String securityImports = includeSecurity ? """
+                import io.swagger.v3.oas.models.Components;
+                import io.swagger.v3.oas.models.security.SecurityScheme;
+                import io.swagger.v3.oas.models.security.SecurityRequirement;
+                """ : "";
+
+        String securityConfiguration = includeSecurity ? """
+                        
+                        // JWT Security Scheme
+                        SecurityScheme securityScheme = new SecurityScheme()
+                                .type(SecurityScheme.Type.HTTP)
+                                .scheme("bearer")
+                                .bearerFormat("JWT")
+                                .in(SecurityScheme.In.HEADER)
+                                .name("Authorization");
+                        
+                        Components components = new Components()
+                                .addSecuritySchemes("bearerAuth", securityScheme);
+                        
+                        SecurityRequirement securityRequirement = new SecurityRequirement()
+                                .addList("bearerAuth");
+                        
+                        // Build and return OpenAPI configuration with JWT security
+                        return new OpenAPI()
+                                .servers(List.of(localServer))
+                                .info(info)
+                                .components(components)
+                                .addSecurityItem(securityRequirement);
+                """ : """
+                        
+                        // Build and return OpenAPI configuration
+                        return new OpenAPI()
+                                .servers(List.of(localServer))
+                                .info(info);
+                """;
 
         String code = String.format("""
                 package %s;
@@ -30,7 +66,7 @@ public class SwaggerConfigGenerator {
                 import org.springframework.beans.factory.annotation.Value;
                 import org.springframework.context.annotation.Bean;
                 import org.springframework.context.annotation.Configuration;
-                
+                %s
                 import java.util.List;
                 
                 /**
@@ -72,14 +108,10 @@ public class SwaggerConfigGenerator {
                                            ". This API provides comprehensive CRUD operations for managing resources.")
                                 .contact(contact)
                                 .license(license);
-                        
-                        // Build and return OpenAPI configuration
-                        return new OpenAPI()
-                                .servers(List.of(localServer))
-                                .info(info);
+                %s
                     }
                 }
-                """, pkg);
+                """, pkg, securityImports, securityConfiguration);
 
         PsiFile file = PsiFileFactory.getInstance(project)
                 .createFileFromText(
