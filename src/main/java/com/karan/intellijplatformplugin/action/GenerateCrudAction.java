@@ -11,7 +11,7 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
- * Action to generate complete CRUD code with Swagger documentation and pagination support.
+ * Action to generate complete CRUD code with Swagger, pagination, and auditing support.
  */
 public class GenerateCrudAction extends AnAction {
 
@@ -76,6 +76,11 @@ public class GenerateCrudAction extends AnAction {
                 SwaggerReadmeGenerator.generate(project, sourceRoot, meta);
                 ApplicationPropertiesGenerator.generate(project, sourceRoot, meta);
 
+                // Generate auditing support
+                BaseAuditEntityGenerator.generate(project, sourceRoot, meta);
+                JpaAuditingConfigGenerator.generate(project, sourceRoot, meta);
+                AuditingReadmeGenerator.generate(project, sourceRoot, meta);
+
                 // Generate pagination support
                 PaginationGenerator.generate(project, sourceRoot, meta);
 
@@ -97,6 +102,7 @@ public class GenerateCrudAction extends AnAction {
                     
                     ✓ Swagger Configuration
                     ✓ OpenAPI Documentation
+                    ✓ JPA Auditing (BaseAuditEntity, Config)
                     ✓ Pagination Support (PageResponse, SortDirection)
                     ✓ Custom Exceptions
                     ✓ Error Response DTO
@@ -107,16 +113,22 @@ public class GenerateCrudAction extends AnAction {
                     ✓ Service (with pagination)
                     ✓ Controller (with paginated endpoint)
                     ✓ API Setup README
+                    ✓ Auditing Guide
                     
                     📄 Endpoints:
                     • GET /api/%s - Get all (unpaginated)
                     • GET /api/%s/paginated - Get paginated & sorted
                     • GET /api/%s/{id} - Get by ID
-                    • POST /api/%s - Create
-                    • PUT /api/%s/{id} - Update
+                    • POST /api/%s - Create (auto-tracks createdAt/createdBy)
+                    • PUT /api/%s/{id} - Update (auto-tracks updatedAt/updatedBy)
                     • DELETE /api/%s/{id} - Delete
                     • HEAD /api/%s/{id} - Check exists
                     • GET /api/%s/count - Count all
+                    
+                    📝 Next Steps:
+                    1. Make your entity extend BaseAuditEntity
+                    2. Add @EnableJpaAuditing to your main class (already in JpaAuditingConfig)
+                    3. Check AUDITING_GUIDE.md for Spring Security integration
                     
                     Access Swagger UI at: http://localhost:8080/swagger-ui.html
                     """,
@@ -139,7 +151,7 @@ public class GenerateCrudAction extends AnAction {
                     "Failed to generate CRUD code: " + ex.getMessage(),
                     "Generation Error"
             );
-            ex.printStackTrace(); // Print stack trace for debugging
+            ex.printStackTrace();
         }
     }
 

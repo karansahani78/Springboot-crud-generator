@@ -4,9 +4,9 @@
 
     <name>Spring Boot CRUD Generator</name>
 
-    <version>1.0.4s</version>
+    <version>1.0.5</version>
 
-    <!-- Compatible with IntelliJ IDEA 2023.3 and above -->
+    <!-- Compatible with IntelliJ IDEA 2023.3 through 2025.3 -->
     <idea-version since-build="233" until-build="253.*"/>
 
     <vendor
@@ -20,30 +20,47 @@
         <p>
             <b>Spring Boot CRUD Generator</b> generates
             <b>production-ready CRUD layers</b> for Spring Boot applications
-            directly from a JPA entity.
+            directly from a JPA entity with advanced features.
         </p>
 
+        <h3>Core Features</h3>
         <ul>
-            <li><b>REST Controller</b> - Complete CRUD endpoints with proper HTTP methods</li>
-            <li><b>Service Layer</b> - Transaction management and business logic</li>
+            <li><b>REST Controller</b> - Complete CRUD endpoints with OpenAPI documentation</li>
+            <li><b>Service Layer</b> - Transaction management with pagination support</li>
             <li><b>Repository</b> - Spring Data JPA repository interface</li>
             <li><b>DTO</b> - Data Transfer Objects with validation annotations</li>
-            <li><b>Mapper</b> - Entity-DTO conversion utilities</li>
+            <li><b>Mapper</b> - Entity-DTO conversion utilities using BeanUtils</li>
+            <li><b>Exception Handling</b> - Custom exceptions with global handler</li>
+            <li><b>Swagger/OpenAPI</b> - Complete API documentation with Springdoc</li>
+            <li><b>Pagination</b> - Page-based results with sorting support</li>
+            <li><b>JPA Auditing</b> - Automatic tracking of created/modified timestamps and users</li>
         </ul>
 
-        <p>
-            Eliminates repetitive CRUD boilerplate and enforces a clean,
-            layered backend architecture using IntelliJ PSI-based code generation.
-        </p>
-
-        <h3>Features</h3>
+        <h3>Generated Components</h3>
         <ul>
-            <li>Generate complete CRUD layer from any JPA entity</li>
-            <li>Supports Jakarta and Javax persistence annotations</li>
-            <li>Automatic field mapping with proper getters/setters</li>
-            <li>REST API with standard HTTP methods (GET, POST, PUT, DELETE)</li>
-            <li>Transaction-aware service layer</li>
-            <li>Input validation using Jakarta Bean Validation</li>
+            <li>✓ OpenAPI Configuration (Swagger UI ready)</li>
+            <li>✓ BaseAuditEntity (CreatedAt, UpdatedAt, CreatedBy, UpdatedBy)</li>
+            <li>✓ JpaAuditingConfig (with Spring Security integration guide)</li>
+            <li>✓ PageResponse wrapper for paginated results</li>
+            <li>✓ Custom exceptions (ResourceNotFoundException, BadRequestException, etc.)</li>
+            <li>✓ ErrorResponse DTO with standardized error structure</li>
+            <li>✓ GlobalExceptionHandler (@ControllerAdvice)</li>
+            <li>✓ Entity DTOs with @Schema annotations</li>
+            <li>✓ Service methods with pagination</li>
+            <li>✓ Controller endpoints with full Swagger docs</li>
+            <li>✓ Complete API documentation markdown files</li>
+        </ul>
+
+        <h3>REST Endpoints Generated</h3>
+        <ul>
+            <li>GET /api/{entity} - Get all entities (unpaginated)</li>
+            <li>GET /api/{entity}/paginated - Get paginated & sorted results</li>
+            <li>GET /api/{entity}/{id} - Get entity by ID</li>
+            <li>POST /api/{entity} - Create new entity</li>
+            <li>PUT /api/{entity}/{id} - Update entity</li>
+            <li>DELETE /api/{entity}/{id} - Delete entity</li>
+            <li>HEAD /api/{entity}/{id} - Check if entity exists</li>
+            <li>GET /api/{entity}/count - Count all entities</li>
         </ul>
 
         <h3>Usage</h3>
@@ -51,49 +68,111 @@
             <li>Right-click on any JPA entity class in the editor</li>
             <li>Select <b>"Generate Spring Boot CRUD"</b></li>
             <li>All layers will be generated automatically in appropriate packages</li>
+            <li>Access Swagger UI at http://localhost:8080/swagger-ui.html</li>
         </ol>
 
-        <h3>Generated Structure</h3>
+        <h3>Generated Project Structure</h3>
         <pre>
         com.example.yourapp
-        ├── entity (your existing entity)
-        ├── dto (generated DTOs)
-        ├── mapper (generated mappers)
-        ├── repository (generated repositories)
-        ├── service (generated services)
-        └── controller (generated controllers)
+        ├── config
+        │   ├── OpenApiConfig.java (Swagger configuration)
+        │   └── JpaAuditingConfig.java (Auditing setup)
+        ├── entity
+        │   ├── BaseAuditEntity.java (Audit base class)
+        │   └── YourEntity.java (your existing entity)
+        ├── dto
+        │   ├── YourEntityDto.java (DTO)
+        │   ├── ErrorResponse.java (Error structure)
+        │   ├── PageResponse.java (Pagination wrapper)
+        │   └── SortDirection.java (Sort enum)
+        ├── mapper
+        │   └── YourEntityMapper.java (Entity-DTO mapping)
+        ├── repository
+        │   └── YourEntityRepository.java (JPA repository)
+        ├── service
+        │   └── YourEntityService.java (Business logic + pagination)
+        ├── controller
+        │   └── YourEntityController.java (REST endpoints)
+        └── exception
+            ├── ResourceNotFoundException.java
+            ├── BadRequestException.java
+            ├── DuplicateResourceException.java
+            └── GlobalExceptionHandler.java
         </pre>
+
+        <h3>Requirements</h3>
+        <ul>
+            <li>Spring Boot 3.2.0+ (or 2.7+ with adjustments)</li>
+            <li>Java 17+</li>
+            <li>Spring Data JPA</li>
+            <li>Spring Web</li>
+            <li>Bean Validation</li>
+        </ul>
+
+        <h3>Compatibility</h3>
+        <ul>
+            <li>Supports both Jakarta and Javax persistence annotations</li>
+            <li>Works with any JPA entity</li>
+            <li>Compatible with PostgreSQL, MySQL, H2, and other databases</li>
+            <li>IntelliJ IDEA 2023.3 through 2025.3</li>
+        </ul>
     ]]></description>
 
     <change-notes><![CDATA[
         <h3>Version 1.0.4</h3>
         <ul>
-            <li>Fixed DTO generation with proper toString() implementation</li>
-            <li>Enhanced mapper with proper field mapping</li>
-            <li>Added comprehensive logging in service layer</li>
-            <li>Improved compatibility range (2023.3 through 2025.3)</li>
-            <li>Better error handling and validation</li>
+            <li><b>NEW:</b> JPA Auditing support with BaseAuditEntity</li>
+            <li><b>NEW:</b> Automatic tracking of CreatedAt, UpdatedAt, CreatedBy, UpdatedBy</li>
+            <li><b>NEW:</b> JpaAuditingConfig with Spring Security integration guide</li>
+            <li><b>NEW:</b> Pagination and sorting support</li>
+            <li><b>NEW:</b> PageResponse wrapper for paginated results</li>
+            <li><b>NEW:</b> GET /api/{entity}/paginated endpoint with query parameters</li>
+            <li><b>NEW:</b> Swagger/OpenAPI 3.0 integration with Springdoc</li>
+            <li><b>NEW:</b> Complete API documentation with @Operation, @Schema annotations</li>
+            <li><b>NEW:</b> Custom exception classes (ResourceNotFoundException, BadRequestException, DuplicateResourceException)</li>
+            <li><b>NEW:</b> GlobalExceptionHandler with @ControllerAdvice</li>
+            <li><b>NEW:</b> ErrorResponse DTO with standardized error structure</li>
+            <li><b>NEW:</b> Comprehensive README files (API_DOCUMENTATION.md, AUDITING_GUIDE.md)</li>
+            <li>Enhanced service layer with validation and detailed logging</li>
+            <li>Improved DTO generation with proper getters/setters</li>
+            <li>Fixed mapper with reliable BeanUtils.copyProperties()</li>
+            <li>Better error handling throughout all layers</li>
+            <li>Production-ready code with transaction management</li>
+        </ul>
+
+        <h3>Version 1.0.3</h3>
+        <ul>
+            <li>Fixed OpenAPI configuration compatibility</li>
+            <li>Updated to work with Spring Boot 3.2.0</li>
+        </ul>
+
+        <h3>Version 1.0.2</h3>
+        <ul>
+            <li>Fixed DTO toString() generation</li>
+            <li>Enhanced field mapping</li>
         </ul>
 
         <h3>Version 1.0.1</h3>
         <ul>
             <li>Initial release</li>
-            <li>Complete CRUD generation from JPA entities</li>
+            <li>Basic CRUD generation from JPA entities</li>
             <li>Support for custom ID types</li>
         </ul>
     ]]></change-notes>
 
     <depends>com.intellij.modules.java</depends>
+    <depends>com.intellij.modules.platform</depends>
 
     <actions>
         <action
                 id="GenerateSpringCrud"
                 class="com.karan.intellijplatformplugin.action.GenerateCrudAction"
                 text="Generate Spring Boot CRUD"
-                description="Generate Controller, Service, Repository, DTO, and Mapper"
+                description="Generate complete CRUD layer with Swagger, Pagination, Auditing, and Exception Handling"
                 icon="AllIcons.Actions.Lightning">
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
+            <add-to-group group-id="GenerateGroup" anchor="first"/>
         </action>
     </actions>
 
