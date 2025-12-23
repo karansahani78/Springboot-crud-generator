@@ -7,7 +7,7 @@ import com.karan.intellijplatformplugin.model.*;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
- * Generates DTO (Data Transfer Object) classes with proper getters, setters, and toString.
+ * Generates DTO classes with OpenAPI schema annotations.
  */
 public class DtoGenerator {
 
@@ -24,22 +24,28 @@ public class DtoGenerator {
         StringBuilder toStringBuilder = new StringBuilder();
 
         int fieldCount = 0;
-        // Generate fields and getters/setters for non-ID fields
         for (FieldMeta f : meta.getFields()) {
             if (f.getName().equalsIgnoreCase("id")) {
-                continue; // Skip ID field in DTO
+                continue;
             }
 
             String fieldName = f.getName();
             String fieldType = f.getType();
             String capitalizedName = f.getCapitalizedName();
 
-            // Add field with validation annotation
+            // Add field with validation and OpenAPI schema annotations
             fields.append(String.format("""
-                    @jakarta.validation.constraints.NotNull
+                    @Schema(description = "%s of the %s", example = "Sample %s", requiredMode = Schema.RequiredMode.REQUIRED)
+                    @jakarta.validation.constraints.NotNull(message = "%s cannot be null")
                     private %s %s;
                     
-                    """, fieldType, fieldName));
+                    """,
+                    capitalizedName,
+                    meta.getClassName().toLowerCase(),
+                    fieldName,
+                    capitalizedName,
+                    fieldType,
+                    fieldName));
 
             // Add getter
             gettersSetters.append(String.format("""
@@ -57,7 +63,6 @@ public class DtoGenerator {
                     
                     """, capitalizedName, fieldType, fieldName, fieldName, fieldName));
 
-            // Build toString
             if (fieldCount > 0) {
                 toStringBuilder.append(", ");
             }
@@ -65,7 +70,6 @@ public class DtoGenerator {
             fieldCount++;
         }
 
-        // Generate toString method
         String toStringMethod;
         if (fieldCount > 0) {
             toStringMethod = String.format("""
@@ -90,16 +94,19 @@ public class DtoGenerator {
         String code = String.format("""
                 package %s;
                 
+                import io.swagger.v3.oas.annotations.media.Schema;
                 import jakarta.validation.constraints.NotNull;
                 
                 /**
                  * DTO for %s entity.
                  */
+                @Schema(description = "Data Transfer Object for %s")
                 public class %sDto {
                     
                 %s%s%s}
                 """,
                 pkg,
+                meta.getClassName(),
                 meta.getClassName(),
                 meta.getClassName(),
                 fields.toString(),

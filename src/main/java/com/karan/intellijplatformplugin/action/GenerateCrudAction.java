@@ -11,7 +11,7 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
- * Action to generate complete CRUD code for a selected entity class.
+ * Action to generate complete CRUD code with Swagger documentation.
  */
 public class GenerateCrudAction extends AnAction {
 
@@ -71,6 +71,17 @@ public class GenerateCrudAction extends AnAction {
             }
 
             WriteCommandAction.runWriteCommandAction(project, () -> {
+                // Generate Swagger/OpenAPI documentation
+                SwaggerConfigGenerator.generate(project, sourceRoot, meta);
+                SwaggerReadmeGenerator.generate(project, sourceRoot, meta);
+                ApplicationPropertiesGenerator.generate(project, sourceRoot, meta);
+
+                // Generate exception handling
+                ExceptionGenerator.generate(project, sourceRoot, meta);
+                ErrorResponseGenerator.generate(project, sourceRoot, meta);
+                GlobalExceptionHandlerGenerator.generate(project, sourceRoot, meta);
+
+                // Generate CRUD components
                 DtoGenerator.generate(project, sourceRoot, meta);
                 MapperGenerator.generate(project, sourceRoot, meta);
                 RepositoryGenerator.generate(project, sourceRoot, meta);
@@ -78,11 +89,25 @@ public class GenerateCrudAction extends AnAction {
                 ControllerGenerator.generate(project, sourceRoot, meta);
             });
 
-            Messages.showInfoMessage(
-                    project,
-                    "Successfully generated CRUD code for " + meta.getClassName(),
-                    "Spring Boot CRUD Generator"
-            );
+            String message = String.format("""
+                    Successfully generated CRUD code for %s:
+                    
+                    ✓ Swagger Configuration
+                    ✓ OpenAPI Documentation
+                    ✓ Custom Exceptions
+                    ✓ Error Response DTO
+                    ✓ Global Exception Handler
+                    ✓ DTO with Schema Annotations
+                    ✓ Mapper
+                    ✓ Repository
+                    ✓ Service
+                    ✓ Controller with API Docs
+                    ✓ Swagger Setup README
+                    
+                    Access Swagger UI at: http://localhost:8080/swagger-ui.html
+                    """, meta.getClassName());
+
+            Messages.showInfoMessage(project, message, "Spring Boot CRUD Generator");
 
         } catch (Exception ex) {
             Messages.showErrorDialog(
@@ -93,11 +118,6 @@ public class GenerateCrudAction extends AnAction {
         }
     }
 
-    /**
-     * FINAL FIX:
-     * Makes the action visible in IntelliJ IDEA Ultimate + SDK
-     * for both Editor and Project View.
-     */
     @Override
     public void update(AnActionEvent e) {
         Presentation presentation = e.getPresentation();
@@ -105,13 +125,11 @@ public class GenerateCrudAction extends AnAction {
 
         PsiJavaFile javaFile = null;
 
-        // 1️⃣ Editor context
         PsiFile psiFile = e.getData(CommonDataKeys.PSI_FILE);
         if (psiFile instanceof PsiJavaFile) {
             javaFile = (PsiJavaFile) psiFile;
         }
 
-        // 2️⃣ Project View PSI context
         if (javaFile == null) {
             PsiElement element = e.getData(CommonDataKeys.PSI_ELEMENT);
             if (element instanceof PsiJavaFile) {
@@ -124,28 +142,20 @@ public class GenerateCrudAction extends AnAction {
             }
         }
 
-        // 3️⃣ IntelliJ Ultimate fallback (VirtualFile-based)
         if (javaFile == null && project != null) {
             VirtualFile vf = e.getData(CommonDataKeys.VIRTUAL_FILE);
             if (vf != null) {
-                PsiFile fileFromVf =
-                        PsiManager.getInstance(project).findFile(vf);
+                PsiFile fileFromVf = PsiManager.getInstance(project).findFile(vf);
                 if (fileFromVf instanceof PsiJavaFile) {
                     javaFile = (PsiJavaFile) fileFromVf;
                 }
             }
         }
 
-        boolean enabled =
-                javaFile != null &&
-                        javaFile.getClasses().length > 0;
-
+        boolean enabled = javaFile != null && javaFile.getClasses().length > 0;
         presentation.setEnabledAndVisible(enabled);
     }
 
-    /**
-     * Checks if the class has @Entity annotation.
-     */
     private boolean isEntity(PsiClass psiClass) {
         return psiClass.hasAnnotation("jakarta.persistence.Entity") ||
                 psiClass.hasAnnotation("javax.persistence.Entity");
