@@ -123,7 +123,7 @@ public class JwtServiceGenerator {
                      */
                     private Claims extractAllClaims(String token) {
                         return Jwts
-                                .parserBuilder()
+                                .parser()
                                 .setSigningKey(getSignInKey())
                                 .build()
                                 .parseClaimsJws(token)
