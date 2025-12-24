@@ -4,6 +4,7 @@ import com.intellij.ide.highlighter.JavaFileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.karan.intellijplatformplugin.model.ClassMeta;
+import com.karan.intellijplatformplugin.util.FileExistsUtil;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
@@ -17,21 +18,33 @@ public class ExceptionGenerator {
         }
 
         String pkg = meta.basePackage() + ".exception";
-        PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
 
-        // Generate ResourceNotFoundException
-        generateResourceNotFoundException(project, dir, meta);
+        // ✅ CHECK IF FILES ALREADY EXIST
+        if (!FileExistsUtil.fileExistsInPackage(root, pkg, "ResourceNotFoundException.java")) {
+            generateResourceNotFoundException(project, root, meta);
+        } else {
+            System.out.println("ResourceNotFoundException.java already exists, skipping.");
+        }
 
-        // Generate BadRequestException
-        generateBadRequestException(project, dir);
+        if (!FileExistsUtil.fileExistsInPackage(root, pkg, "BadRequestException.java")) {
+            generateBadRequestException(project, root, meta);
+        } else {
+            System.out.println("BadRequestException.java already exists, skipping.");
+        }
 
-        // Generate DuplicateResourceException
-        generateDuplicateResourceException(project, dir);
+        if (!FileExistsUtil.fileExistsInPackage(root, pkg, "DuplicateResourceException.java")) {
+            generateDuplicateResourceException(project, root, meta);
+        } else {
+            System.out.println("DuplicateResourceException.java already exists, skipping.");
+        }
     }
 
-    private static void generateResourceNotFoundException(Project project, PsiDirectory dir, ClassMeta meta) {
+    private static void generateResourceNotFoundException(Project project, PsiDirectory root, ClassMeta meta) {
+        String pkg = meta.basePackage() + ".exception";
+        PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
+
         String code = String.format("""
-                package %s.exception;
+                package %s;
                 
                 /**
                  * Exception thrown when a requested resource is not found.
@@ -68,7 +81,7 @@ public class ExceptionGenerator {
                         return fieldValue;
                     }
                 }
-                """, meta.basePackage());
+                """, pkg);
 
         PsiFile file = PsiFileFactory.getInstance(project)
                 .createFileFromText(
@@ -79,10 +92,9 @@ public class ExceptionGenerator {
         dir.add(file);
     }
 
-    private static void generateBadRequestException(Project project, PsiDirectory dir) {
-        String pkg = dir.getVirtualFile().getPath()
-                .substring(dir.getVirtualFile().getPath().lastIndexOf("java/") + 5)
-                .replace("/", ".");
+    private static void generateBadRequestException(Project project, PsiDirectory root, ClassMeta meta) {
+        String pkg = meta.basePackage() + ".exception";
+        PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
 
         String code = String.format("""
                 package %s;
@@ -111,10 +123,9 @@ public class ExceptionGenerator {
         dir.add(file);
     }
 
-    private static void generateDuplicateResourceException(Project project, PsiDirectory dir) {
-        String pkg = dir.getVirtualFile().getPath()
-                .substring(dir.getVirtualFile().getPath().lastIndexOf("java/") + 5)
-                .replace("/", ".");
+    private static void generateDuplicateResourceException(Project project, PsiDirectory root, ClassMeta meta) {
+        String pkg = meta.basePackage() + ".exception";
+        PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
 
         String code = String.format("""
                 package %s;

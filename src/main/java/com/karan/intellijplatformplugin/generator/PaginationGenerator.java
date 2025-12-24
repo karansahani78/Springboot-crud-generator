@@ -4,6 +4,7 @@ import com.intellij.ide.highlighter.JavaFileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.karan.intellijplatformplugin.model.ClassMeta;
+import com.karan.intellijplatformplugin.util.FileExistsUtil;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
@@ -25,8 +26,16 @@ public class PaginationGenerator {
      */
     private static void generatePageResponseDto(Project project, PsiDirectory root, ClassMeta meta) {
         String pkg = meta.basePackage() + ".dto";
+
+        // ✅ CHECK IF FILE ALREADY EXISTS
+        if (FileExistsUtil.fileExistsInPackage(root, pkg, "PageResponse.java")) {
+            System.out.println("PageResponse.java already exists, skipping generation.");
+            return;
+        }
+
         PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
 
+        // ... rest of the code remains the same ...
         String code = String.format("""
                 package %s;
                 
@@ -82,7 +91,6 @@ public class PaginationGenerator {
                         this.hasPrevious = pageNumber > 0;
                     }
                     
-                    // Static factory method
                     public static <T> PageResponse<T> of(org.springframework.data.domain.Page<T> page) {
                         return new PageResponse<>(
                             page.getContent(),
@@ -93,78 +101,32 @@ public class PaginationGenerator {
                         );
                     }
                     
-                    // Getters and Setters
-                    public List<T> getContent() {
-                        return content;
-                    }
+                    public List<T> getContent() { return content; }
+                    public void setContent(List<T> content) { this.content = content; }
                     
-                    public void setContent(List<T> content) {
-                        this.content = content;
-                    }
+                    public int getPageNumber() { return pageNumber; }
+                    public void setPageNumber(int pageNumber) { this.pageNumber = pageNumber; }
                     
-                    public int getPageNumber() {
-                        return pageNumber;
-                    }
+                    public int getPageSize() { return pageSize; }
+                    public void setPageSize(int pageSize) { this.pageSize = pageSize; }
                     
-                    public void setPageNumber(int pageNumber) {
-                        this.pageNumber = pageNumber;
-                    }
+                    public long getTotalElements() { return totalElements; }
+                    public void setTotalElements(long totalElements) { this.totalElements = totalElements; }
                     
-                    public int getPageSize() {
-                        return pageSize;
-                    }
+                    public int getTotalPages() { return totalPages; }
+                    public void setTotalPages(int totalPages) { this.totalPages = totalPages; }
                     
-                    public void setPageSize(int pageSize) {
-                        this.pageSize = pageSize;
-                    }
+                    public boolean isFirst() { return first; }
+                    public void setFirst(boolean first) { this.first = first; }
                     
-                    public long getTotalElements() {
-                        return totalElements;
-                    }
+                    public boolean isLast() { return last; }
+                    public void setLast(boolean last) { this.last = last; }
                     
-                    public void setTotalElements(long totalElements) {
-                        this.totalElements = totalElements;
-                    }
+                    public boolean isHasNext() { return hasNext; }
+                    public void setHasNext(boolean hasNext) { this.hasNext = hasNext; }
                     
-                    public int getTotalPages() {
-                        return totalPages;
-                    }
-                    
-                    public void setTotalPages(int totalPages) {
-                        this.totalPages = totalPages;
-                    }
-                    
-                    public boolean isFirst() {
-                        return first;
-                    }
-                    
-                    public void setFirst(boolean first) {
-                        this.first = first;
-                    }
-                    
-                    public boolean isLast() {
-                        return last;
-                    }
-                    
-                    public void setLast(boolean last) {
-                        this.last = last;
-                    }
-                    
-                    public boolean isHasNext() {
-                        return hasNext;
-                    }
-                    
-                    public void setHasNext(boolean hasNext) {
-                        this.hasNext = hasNext;
-                    }
-                    
-                    public boolean isHasPrevious() {
-                        return hasPrevious;
-                    }
-                    
-                    public void setHasPrevious(boolean hasPrevious) {
-                        this.hasPrevious = hasPrevious;
-                    }
+                    public boolean isHasPrevious() { return hasPrevious; }
+                    public void setHasPrevious(boolean hasPrevious) { this.hasPrevious = hasPrevious; }
                     
                     @Override
                     public String toString() {
@@ -194,6 +156,13 @@ public class PaginationGenerator {
      */
     private static void generateSortDirection(Project project, PsiDirectory root, ClassMeta meta) {
         String pkg = meta.basePackage() + ".dto";
+
+        // ✅ CHECK IF FILE ALREADY EXISTS
+        if (FileExistsUtil.fileExistsInPackage(root, pkg, "SortDirection.java")) {
+            System.out.println("SortDirection.java already exists, skipping generation.");
+            return;
+        }
+
         PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
 
         String code = String.format("""
