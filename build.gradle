@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.karan'
-version = '1.0.5'  // Updated version
+version = '1.0.6'  // Updated version
 description = 'Spring Boot CRUD Generator IntelliJ Plugin'
 
 java {

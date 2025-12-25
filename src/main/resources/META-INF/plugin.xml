@@ -4,7 +4,7 @@
 
     <name>Spring Boot CRUD Generator</name>
 
-    <version>1.0.5</version>
+    <version>1.0.6</version>
 
     <!-- Compatible with IntelliJ IDEA 2023.3 through 2025.3 -->
     <idea-version since-build="233" until-build="253.*"/>
@@ -20,11 +20,12 @@
         <p>
             <b>Spring Boot CRUD Generator</b> generates
             <b>production-ready CRUD layers</b> for Spring Boot applications
-            directly from a JPA entity with advanced features.
+            directly from JPA entities with advanced features and multi-entity support.
         </p>
 
         <h3>Core Features</h3>
         <ul>
+            <li><b>Multi-Entity Support</b> - Generate CRUD for multiple entities seamlessly</li>
             <li><b>REST Controller</b> - Complete CRUD endpoints with OpenAPI documentation</li>
             <li><b>Service Layer</b> - Transaction management with pagination support</li>
             <li><b>Repository</b> - Spring Data JPA repository interface</li>
@@ -41,7 +42,7 @@
         <ul>
             <li>✓ OpenAPI Configuration (Swagger UI ready)</li>
             <li>✓ BaseAuditEntity (CreatedAt, UpdatedAt, CreatedBy, UpdatedBy)</li>
-            <li>✓ JpaAuditingConfig (with Spring Security integration guide)</li>
+            <li>✓ JpaAuditingConfig (with Spring Security integration)</li>
             <li>✓ PageResponse wrapper for paginated results</li>
             <li>✓ Custom exceptions (ResourceNotFoundException, BadRequestException, etc.)</li>
             <li>✓ ErrorResponse DTO with standardized error structure</li>
@@ -49,11 +50,12 @@
             <li>✓ Entity DTOs with @Schema annotations</li>
             <li>✓ Service methods with pagination</li>
             <li>✓ Controller endpoints with full Swagger docs</li>
-            <li>✓ Optional JWT authentication module with role-based access (USER, ADMIN, etc.)</li>
+            <li>✓ Optional JWT authentication module with role-based access (USER, ADMIN, MODERATOR)</li>
             <li>✓ Complete API documentation markdown files</li>
+            <li>✓ Smart file detection - avoids duplicate configuration files</li>
         </ul>
 
-        <h3>REST Endpoints Generated</h3>
+        <h3>REST Endpoints Generated (Per Entity)</h3>
         <ul>
             <li>GET /api/{entity} - Get all entities (unpaginated)</li>
             <li>GET /api/{entity}/paginated - Get paginated & sorted results</li>
@@ -65,38 +67,79 @@
             <li>GET /api/{entity}/count - Count all entities</li>
         </ul>
 
+        <h3>Authentication Endpoints (If JWT Enabled)</h3>
+        <ul>
+            <li>POST /api/auth/register - Register new user</li>
+            <li>POST /api/auth/login - Authenticate user</li>
+        </ul>
+
         <h3>Usage</h3>
         <ol>
             <li>Right-click on any JPA entity class in the editor</li>
             <li>Select <b>"Generate Spring Boot CRUD"</b></li>
+            <li>Choose whether to include JWT Security (optional)</li>
             <li>All layers will be generated automatically in appropriate packages</li>
-            <li>JWT Security is <b>optional</b> and can be enabled only if required</li>
+            <li>Repeat for multiple entities - shared config files won't be duplicated</li>
             <li>Access Swagger UI at http://localhost:8080/swagger-ui.html</li>
         </ol>
+
+        <h3>Multi-Entity Workflow</h3>
+        <pre>
+        1. Generate CRUD for User entity → Full setup created
+        2. Generate CRUD for Post entity → Only Post-specific files added
+        3. Generate CRUD for Comment entity → Only Comment-specific files added
+
+        ✓ Configuration files (OpenAPI, Auditing, Security) are shared
+        ✓ Entity-specific files (DTO, Service, Controller) are unique
+        ✓ No duplicate file errors!
+        </pre>
 
         <h3>Generated Project Structure</h3>
         <pre>
         com.example.yourapp
-        ├── config
+        ├── config (Shared Configuration - Generated Once)
         │   ├── OpenApiConfig.java
         │   ├── JpaAuditingConfig.java
-        │   └── SecurityConfig.java (optional JWT)
+        │   └── SecurityConfig.java (optional)
         ├── entity
-        │   ├── BaseAuditEntity.java
-        │   ├── AppUser.java (JWT User entity)
-        │   └── YourEntity.java
-        ├── dto
-        │   ├── YourEntityDto.java
-        │   ├── AuthenticationRequest.java
-        │   ├── AuthenticationResponse.java
-        │   └── RegisterRequest.java
-        ├── mapper
-        ├── repository
-        ├── service
-        ├── controller
-        │   ├── AuthenticationController.java
-        │   └── YourEntityController.java
-        └── exception
+        │   ├── BaseAuditEntity.java (shared)
+        │   ├── AppUser.java (if JWT enabled)
+        │   ├── Role.java (if JWT enabled)
+        │   ├── User.java (your entity)
+        │   ├── Post.java (your entity)
+        │   └── Comment.java (your entity)
+        ├── dto (Shared + Entity-specific)
+        │   ├── PageResponse.java (shared)
+        │   ├── ErrorResponse.java (shared)
+        │   ├── UserDto.java (entity-specific)
+        │   ├── PostDto.java (entity-specific)
+        │   └── CommentDto.java (entity-specific)
+        ├── mapper (Entity-specific)
+        │   ├── UserMapper.java
+        │   ├── PostMapper.java
+        │   └── CommentMapper.java
+        ├── repository (Entity-specific)
+        │   ├── UserRepository.java
+        │   ├── PostRepository.java
+        │   └── CommentRepository.java
+        ├── service (Entity-specific)
+        │   ├── UserService.java
+        │   ├── PostService.java
+        │   └── CommentService.java
+        ├── controller (Entity-specific)
+        │   ├── UserController.java
+        │   ├── PostController.java
+        │   ├── CommentController.java
+        │   └── AuthenticationController.java (if JWT)
+        ├── security (JWT - Generated Once if enabled)
+        │   ├── JwtService.java
+        │   ├── JwtAuthenticationFilter.java
+        │   └── UserDetailsServiceImpl.java
+        └── exception (Shared - Generated Once)
+            ├── ResourceNotFoundException.java
+            ├── BadRequestException.java
+            ├── DuplicateResourceException.java
+            └── GlobalExceptionHandler.java
         </pre>
 
         <h3>Requirements</h3>
@@ -107,6 +150,7 @@
             <li>Spring Web</li>
             <li>Spring Security (only if JWT is enabled)</li>
             <li>Bean Validation</li>
+            <li>Springdoc OpenAPI (for Swagger documentation)</li>
         </ul>
 
         <h3>Compatibility</h3>
@@ -114,25 +158,73 @@
             <li>Supports both Jakarta and Javax persistence annotations</li>
             <li>Works with any JPA entity</li>
             <li>JWT security is fully optional and non-intrusive</li>
+            <li>Generate CRUD for unlimited entities in the same project</li>
             <li>Compatible with PostgreSQL, MySQL, H2, and other databases</li>
             <li>IntelliJ IDEA 2023.3 through 2025.3</li>
+        </ul>
+
+        <h3>What's New in 1.0.6</h3>
+        <ul>
+            <li>🔧 <b>Bug Fix:</b> Multi-entity support - No more duplicate file errors</li>
+            <li>🔧 <b>Bug Fix:</b> Smart file existence detection for all generators</li>
+            <li>🔧 <b>Bug Fix:</b> Configuration files are now properly shared across entities</li>
+            <li>✨ <b>Enhancement:</b> Generate CRUD for multiple entities seamlessly</li>
+            <li>✨ <b>Enhancement:</b> Improved file management system</li>
+            <li>✨ <b>Enhancement:</b> Better error messages and console logging</li>
         </ul>
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>Version 1.0.6</h3>
+        <ul>
+            <li><b>🔧 CRITICAL BUG FIX:</b> Multi-entity support now working correctly</li>
+            <li><b>Fixed:</b> "File already exists" error when generating CRUD for multiple entities</li>
+            <li><b>Fixed:</b> Configuration files (OpenApiConfig, JpaAuditingConfig, etc.) are now shared</li>
+            <li><b>Fixed:</b> Security files are generated once and reused across all entities</li>
+            <li><b>Fixed:</b> Exception classes are shared across entities</li>
+            <li><b>Fixed:</b> Pagination components (PageResponse, SortDirection) are shared</li>
+            <li><b>Improved:</b> Smart file existence detection using FileExistsUtil</li>
+            <li><b>Improved:</b> Console logging for skipped files</li>
+            <li><b>Improved:</b> Error handling and validation</li>
+            <li><b>Enhanced:</b> Better multi-entity workflow documentation</li>
+        </ul>
+
         <h3>Version 1.0.5</h3>
         <ul>
             <li><b>NEW:</b> Optional JWT-based security support</li>
-            <li>Role-based authorization (USER, ADMIN, etc.)</li>
+            <li>Role-based authorization (USER, ADMIN, MODERATOR)</li>
             <li>Authentication & registration endpoints</li>
             <li>JWT integration designed to be optional and customizable</li>
+            <li>Spring Security integration with JPA Auditing</li>
         </ul>
 
         <h3>Version 1.0.4</h3>
         <ul>
-            <li>JPA Auditing support with BaseAuditEntity</li>
-            <li>Pagination and sorting support</li>
-            <li>Swagger/OpenAPI integration</li>
+            <li><b>NEW:</b> JPA Auditing support with BaseAuditEntity</li>
+            <li>Automatic tracking of createdAt, updatedAt, createdBy, updatedBy</li>
+            <li><b>NEW:</b> Pagination and sorting support</li>
+            <li>PageResponse wrapper with metadata</li>
+            <li><b>NEW:</b> Swagger/OpenAPI 3.0 integration</li>
+            <li>Complete API documentation with @Operation and @Schema</li>
+        </ul>
+
+        <h3>Version 1.0.3</h3>
+        <ul>
+            <li>Fixed OpenAPI configuration compatibility</li>
+            <li>Updated to work with Spring Boot 3.2.0</li>
+        </ul>
+
+        <h3>Version 1.0.2</h3>
+        <ul>
+            <li>Fixed DTO toString() generation</li>
+            <li>Enhanced field mapping</li>
+        </ul>
+
+        <h3>Version 1.0.1</h3>
+        <ul>
+            <li>Initial release</li>
+            <li>Basic CRUD generation from JPA entities</li>
+            <li>Support for custom ID types</li>
         </ul>
     ]]></change-notes>
 
@@ -144,7 +236,7 @@
                 id="GenerateSpringCrud"
                 class="com.karan.intellijplatformplugin.action.GenerateCrudAction"
                 text="Generate Spring Boot CRUD"
-                description="Generate complete CRUD layer with Swagger, Pagination, Auditing, Exception Handling, and optional JWT Security"
+                description="Generate complete CRUD layer with multi-entity support, Swagger, Pagination, Auditing, Exception Handling, and optional JWT Security"
                 icon="AllIcons.Actions.Lightning">
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>

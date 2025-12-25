@@ -4,6 +4,7 @@ import com.intellij.ide.highlighter.JavaFileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.karan.intellijplatformplugin.model.ClassMeta;
+import com.karan.intellijplatformplugin.util.FileExistsUtil;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
@@ -17,16 +18,28 @@ public class AuthDtoGenerator {
         }
 
         String pkg = meta.basePackage() + ".dto";
-        PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
 
-        // Generate AuthenticationRequest
-        generateAuthenticationRequest(project, dir, pkg);
+        // ✅ CHECK IF FILES ALREADY EXIST
+        if (!FileExistsUtil.fileExistsInPackage(root, pkg, "AuthenticationRequest.java")) {
+            PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
+            generateAuthenticationRequest(project, dir, pkg);
+        } else {
+            System.out.println("AuthenticationRequest.java already exists, skipping.");
+        }
 
-        // Generate RegisterRequest
-        generateRegisterRequest(project, dir, pkg);
+        if (!FileExistsUtil.fileExistsInPackage(root, pkg, "RegisterRequest.java")) {
+            PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
+            generateRegisterRequest(project, dir, pkg);
+        } else {
+            System.out.println("RegisterRequest.java already exists, skipping.");
+        }
 
-        // Generate AuthenticationResponse
-        generateAuthenticationResponse(project, dir, pkg);
+        if (!FileExistsUtil.fileExistsInPackage(root, pkg, "AuthenticationResponse.java")) {
+            PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
+            generateAuthenticationResponse(project, dir, pkg);
+        } else {
+            System.out.println("AuthenticationResponse.java already exists, skipping.");
+        }
     }
 
     private static void generateAuthenticationRequest(Project project, PsiDirectory dir, String pkg) {

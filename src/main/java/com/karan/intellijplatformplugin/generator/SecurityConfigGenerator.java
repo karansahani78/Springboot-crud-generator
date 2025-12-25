@@ -4,6 +4,7 @@ import com.intellij.ide.highlighter.JavaFileType;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
 import com.karan.intellijplatformplugin.model.ClassMeta;
+import com.karan.intellijplatformplugin.util.FileExistsUtil;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 /**
@@ -17,6 +18,13 @@ public class SecurityConfigGenerator {
         }
 
         String pkg = meta.basePackage() + ".config";
+
+        // ✅ CHECK IF FILE ALREADY EXISTS
+        if (FileExistsUtil.fileExistsInPackage(root, pkg, "SecurityConfig.java")) {
+            System.out.println("SecurityConfig.java already exists, skipping generation.");
+            return;
+        }
+
         PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
 
         String code = String.format("""
