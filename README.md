@@ -177,5 +177,15 @@ This plugin demonstrates:
 * Clean architecture enforcement
 * Real-world developer tooling
 
+## 📜 License
+
+This project is licensed under the **Apache License, Version 2.0**.
+
+Copyright © 2025 **Karan Sahani**
+
+See the [LICENSE](LICENSE) file for details.
+
+
+
 If you find this useful, ⭐ the repository and share feedback.
 More improvements are coming 🚀
