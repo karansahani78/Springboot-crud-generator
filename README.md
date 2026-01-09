@@ -1,7 +1,7 @@
 # 🚀 Spring Boot CRUD Generator (IntelliJ IDEA Plugin) — v1.0.5
 [![Product Hunt](https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=29476)](https://www.producthunt.com/products/jetbrains)
 
-# 📈Trusted by 400+ developers to generate production-ready Spring Boot CRUD backends.
+# 📈Trusted by 500+ developers to generate production-ready Spring Boot CRUD backends.
 
 **Spring Boot CRUD Generator** is a production-grade **IntelliJ IDEA plugin** that generates a complete **Spring Boot backend architecture** from a single JPA entity — directly inside the IDE.
 
