@@ -23,6 +23,7 @@ It eliminates repetitive boilerplate and helps backend developers follow **clean
 * 📄 **Swagger / OpenAPI Documentation**
 * 📊 **Pagination & Sorting**
 * 🕒 **JPA Auditing (createdAt, updatedAt, createdBy, updatedBy)**
+* 📚 **Multi-Entity CRUD Generation**
 
 Security is **fully optional** — generate a lightweight CRUD or a secured backend depending on your needs.
 
