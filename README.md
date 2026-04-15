@@ -15,7 +15,7 @@ It eliminates repetitive boilerplate and helps backend developers follow **clean
 
 ---
 
-## ✨ What’s New in v1.0.6
+## ✨ What’s New in v1.0.7
 
 * 🔐 **Optional JWT Security**
 * 🧑‍💼 **Role-based Authorization (USER / ADMIN / MODERATOR)**
