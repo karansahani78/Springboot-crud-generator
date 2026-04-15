@@ -52,6 +52,9 @@ Security is **fully optional** — generate a lightweight CRUD or a secured back
 * Java 17 compatible
 
 ---
+## 🛢️ **Database Selection (Optional)**  
+Select MySQL, PostgreSQL, MongoDB, or H2 while generating CRUD.  
+The plugin automatically injects the required database drivers and dependencies.
 
 ## 🔐 Optional Security (JWT)
 
