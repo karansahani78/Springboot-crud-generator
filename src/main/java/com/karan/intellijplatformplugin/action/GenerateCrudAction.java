@@ -8,7 +8,11 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
 import com.karan.intellijplatformplugin.generator.*;
 import com.karan.intellijplatformplugin.model.ClassMeta;
+import com.karan.intellijplatformplugin.util.DependencyManager;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Action to generate complete CRUD code with optional security.
@@ -72,7 +76,7 @@ public class GenerateCrudAction extends AnAction {
                 • Password encryption with BCrypt
                 • Protected API endpoints
                 
-                Note: You'll need to add Spring Security & JWT dependencies.
+                Dependencies will be auto-added if missing.
                 """,
                 "Include Spring Security?",
                 "Yes, Include Security",
@@ -99,13 +103,39 @@ public class GenerateCrudAction extends AnAction {
                 return;
             }
 
+            // ✅ Detect build tool
+            String reloadMessage = "Reload your project";
+            boolean isGradle = false;
+            boolean isMaven = false;
+
+            try {
+                String basePath = project.getBasePath();
+                if (basePath != null) {
+                    Path gradleFile = Path.of(basePath, "build.gradle");
+                    Path mavenFile = Path.of(basePath, "pom.xml");
+
+                    if (Files.exists(gradleFile)) {
+                        reloadMessage = "Reload Gradle project";
+                        isGradle = true;
+                    } else if (Files.exists(mavenFile)) {
+                        reloadMessage = "Reload Maven project";
+                        isMaven = true;
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            // ✅ Inject dependencies
+            try {
+                DependencyManager.injectDependencies(project, includeSecurity);
+            } catch (Exception depEx) {
+                System.out.println("⚠️ Dependency injection failed: " + depEx.getMessage());
+            }
+
             WriteCommandAction.runWriteCommandAction(project, () -> {
-                // Generate Swagger/OpenAPI documentation
-                SwaggerConfigGenerator.generate(project, sourceRoot, meta, includeSecurity); // ✅ FIXED: Added includeSecurity parameter
+                SwaggerConfigGenerator.generate(project, sourceRoot, meta, includeSecurity);
                 SwaggerReadmeGenerator.generate(project, sourceRoot, meta);
                 ApplicationPropertiesGenerator.generate(project, sourceRoot, meta, includeSecurity);
 
-                // Generate Spring Security (OPTIONAL)
                 if (includeSecurity) {
                     SecurityConfigGenerator.generate(project, sourceRoot, meta);
                     JwtServiceGenerator.generate(project, sourceRoot, meta);
@@ -120,20 +150,16 @@ public class GenerateCrudAction extends AnAction {
                     SecurityReadmeGenerator.generate(project, sourceRoot, meta);
                 }
 
-                // Generate auditing support (integrated with Security if enabled)
                 BaseAuditEntityGenerator.generate(project, sourceRoot, meta);
                 JpaAuditingConfigGenerator.generate(project, sourceRoot, meta, includeSecurity);
                 AuditingReadmeGenerator.generate(project, sourceRoot, meta);
 
-                // Generate pagination support
                 PaginationGenerator.generate(project, sourceRoot, meta);
 
-                // Generate exception handling
                 ExceptionGenerator.generate(project, sourceRoot, meta);
                 ErrorResponseGenerator.generate(project, sourceRoot, meta);
                 GlobalExceptionHandlerGenerator.generate(project, sourceRoot, meta);
 
-                // Generate CRUD components
                 DtoGenerator.generate(project, sourceRoot, meta);
                 MapperGenerator.generate(project, sourceRoot, meta);
                 RepositoryGenerator.generate(project, sourceRoot, meta);
@@ -141,76 +167,54 @@ public class GenerateCrudAction extends AnAction {
                 ControllerGenerator.generate(project, sourceRoot, meta);
             });
 
-            // Build success message based on what was generated
+            // 🔥 NEW: DB Warning
+            String dbWarning = """
+                    
+                    ⚠️ DATABASE NOT CONFIGURED
+                    
+                    Spring Data JPA has been added, but no database is configured.
+                    
+                    To run the application:
+                    
+                    👉 Option 1 (Quick Start):
+                    Add H2 database
+                    
+                    👉 Option 2:
+                    Configure MySQL / PostgreSQL
+                    
+                    Otherwise application will fail at startup.
+                    """;
+
             String securityMessage = includeSecurity ? """
                     
                     🔒 Security Components:
-                    ✓ Spring Security Configuration (JWT)
-                    ✓ Authentication Controller (Register/Login)
-                    ✓ JWT Service & Filter
-                    ✓ User Entity with Roles
-                    ✓ User Repository & UserDetailsService
-                    ✓ Security Setup Guide
-                    
-                    📄 Public Endpoints:
-                    • POST /api/auth/register - Register new user
-                    • POST /api/auth/login - Login
-                    
-                    🔒 Protected Endpoints (requires JWT token):
-                    """ : """
-                    
-                    📄 API Endpoints (No Authentication):
-                    """;
+                    ✓ JWT Authentication
+                    ✓ Auth Controller
+                    ✓ Security Config
+                    """ : "";
 
             String message = String.format("""
-                    Successfully generated CRUD code for %s:
+                    ✅ Successfully generated CRUD for %s
                     
-                    ✓ Swagger Configuration
-                    ✓ OpenAPI Documentation
-                    ✓ JPA Auditing (CreatedAt, UpdatedAt, CreatedBy, UpdatedBy)
-                    ✓ Pagination Support (PageResponse, SortDirection)
-                    ✓ Custom Exceptions
-                    ✓ Error Response DTO
-                    ✓ Global Exception Handler
-                    ✓ DTO with Validation
-                    ✓ Mapper
-                    ✓ Repository
-                    ✓ Service (with pagination)
-                    ✓ Controller (with paginated endpoint)
-                    ✓ Complete Documentation
-                    %s
-                    • GET /api/%s - Get all
-                    • GET /api/%s/paginated - Get paginated & sorted
-                    • GET /api/%s/{id} - Get by ID
-                    • POST /api/%s - Create
-                    • PUT /api/%s/{id} - Update
-                    • DELETE /api/%s/{id} - Delete
-                    • HEAD /api/%s/{id} - Check exists
-                    • GET /api/%s/count - Count all
-                    
-                    📝 Next Steps:
+                    ✓ Swagger + OpenAPI
+                    ✓ JPA + Auditing
+                    ✓ Pagination
+                    ✓ Exception Handling
+                    ✓ Full CRUD Layers
                     %s
                     
-                    Access Swagger UI at: http://localhost:8080/swagger-ui.html
+                    %s
+                    
+                    ⚠️ IMPORTANT:
+                    %s
+                    
+                    🌐 Swagger:
+                    http://localhost:8080/swagger-ui.html
                     """,
                     meta.getClassName(),
                     securityMessage,
-                    meta.getClassName().toLowerCase(),
-                    meta.getClassName().toLowerCase(),
-                    meta.getClassName().toLowerCase(),
-                    meta.getClassName().toLowerCase(),
-                    meta.getClassName().toLowerCase(),
-                    meta.getClassName().toLowerCase(),
-                    meta.getClassName().toLowerCase(),
-                    meta.getClassName().toLowerCase(),
-                    includeSecurity ?
-                            "1. Add Spring Security & JWT dependencies to pom.xml\n" +
-                                    "    2. Check SECURITY_GUIDE.md for complete setup\n" +
-                                    "    3. Register a user at /api/auth/register\n" +
-                                    "    4. Use the token in Authorization header" :
-                            "1. Your endpoints are publicly accessible\n" +
-                                    "    2. Consider adding security later if needed\n" +
-                                    "    3. Check generated documentation"
+                    dbWarning,
+                    reloadMessage
             );
 
             Messages.showInfoMessage(project, message, "Spring Boot CRUD Generator");
@@ -225,6 +229,7 @@ public class GenerateCrudAction extends AnAction {
         }
     }
 
+    // UNCHANGED
     @Override
     public void update(AnActionEvent e) {
         Presentation presentation = e.getPresentation();

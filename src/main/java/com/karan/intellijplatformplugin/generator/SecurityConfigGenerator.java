@@ -19,7 +19,7 @@ public class SecurityConfigGenerator {
 
         String pkg = meta.basePackage() + ".config";
 
-        // ✅ CHECK IF FILE ALREADY EXISTS
+        // CHECK IF FILE ALREADY EXISTS
         if (FileExistsUtil.fileExistsInPackage(root, pkg, "SecurityConfig.java")) {
             System.out.println("SecurityConfig.java already exists, skipping generation.");
             return;
@@ -30,6 +30,7 @@ public class SecurityConfigGenerator {
         String code = String.format("""
                 package %s;
                 
+                import %s.security.JwtAuthenticationFilter;
                 import org.springframework.context.annotation.Bean;
                 import org.springframework.context.annotation.Configuration;
                 import org.springframework.security.authentication.AuthenticationManager;
@@ -49,12 +50,6 @@ public class SecurityConfigGenerator {
                 
                 /**
                  * Spring Security configuration with JWT authentication.
-                 * 
-                 * This configuration:
-                 * - Enables JWT-based authentication
-                 * - Configures stateless session management
-                 * - Sets up public and protected endpoints
-                 * - Enables method-level security with @PreAuthorize
                  */
                 @Configuration
                 @EnableWebSecurity
@@ -70,23 +65,11 @@ public class SecurityConfigGenerator {
                         this.userDetailsService = userDetailsService;
                     }
                     
-                    /**
-                     * Configures HTTP security with JWT authentication.
-                     * 
-                     * Public endpoints (no authentication required):
-                     * - /api/auth/** (login, register)
-                     * - /swagger-ui/** (API documentation)
-                     * - /v3/api-docs/** (OpenAPI spec)
-                     * 
-                     * Protected endpoints:
-                     * - All other /api/** endpoints require authentication
-                     */
                     @Bean
                     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
                         http
                             .csrf(AbstractHttpConfigurer::disable)
                             .authorizeHttpRequests(auth -> auth
-                                // Public endpoints
                                 .requestMatchers(
                                     "/api/auth/**",
                                     "/swagger-ui/**",
@@ -95,7 +78,6 @@ public class SecurityConfigGenerator {
                                     "/swagger-resources/**",
                                     "/webjars/**"
                                 ).permitAll()
-                                // All other endpoints require authentication
                                 .anyRequest().authenticated()
                             )
                             .sessionManagement(session -> session
@@ -108,34 +90,29 @@ public class SecurityConfigGenerator {
                     }
                     
                     /**
-                     * Configures the authentication provider with UserDetailsService and PasswordEncoder.
+                     * ✅ FINAL FIX: Constructor-based (Spring Security 6+)
                      */
                     @Bean
                     public AuthenticationProvider authenticationProvider() {
-                        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-                        authProvider.setUserDetailsService(userDetailsService);
+                        DaoAuthenticationProvider authProvider =
+                                new DaoAuthenticationProvider(userDetailsService); // ✅ CORRECT
+                    
                         authProvider.setPasswordEncoder(passwordEncoder());
                         return authProvider;
                     }
                     
-                    /**
-                     * Provides the authentication manager bean.
-                     */
                     @Bean
                     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) 
                             throws Exception {
                         return config.getAuthenticationManager();
                     }
                     
-                    /**
-                     * Provides BCrypt password encoder for secure password hashing.
-                     */
                     @Bean
                     public PasswordEncoder passwordEncoder() {
                         return new BCryptPasswordEncoder();
                     }
                 }
-                """, pkg);
+                """, pkg, meta.basePackage());
 
         PsiFile file = PsiFileFactory.getInstance(project)
                 .createFileFromText(

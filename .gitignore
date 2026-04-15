@@ -35,3 +35,9 @@ out/
 
 ### VS Code ###
 .vscode/
+.intellijPlatform/
+*.log
+.idea/
+*.iml
+build/
+out/

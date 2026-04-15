@@ -6,6 +6,7 @@ import com.intellij.psi.*;
 import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.FileExistsUtil;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
+
 /**
  * Generates JWT authentication filter.
  */
@@ -17,11 +18,12 @@ public class JwtAuthenticationFilterGenerator {
         }
 
         String pkg = meta.basePackage() + ".security";
-        // CHECK IF FILE ALREADY EXISTS
+
         if (FileExistsUtil.fileExistsInPackage(root, pkg, "JwtAuthenticationFilter.java")) {
             System.out.println("JwtAuthenticationFilter.java already exists, skipping generation.");
             return;
         }
+
         PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
 
         String code = String.format("""
@@ -43,74 +45,63 @@ public class JwtAuthenticationFilterGenerator {
                 import java.io.IOException;
                 
                 /**
-                 * JWT authentication filter that validates JWT tokens on each request.
-                 * 
-                 * This filter:
-                 * - Extracts JWT token from Authorization header
-                 * - Validates the token
-                 * - Sets authentication in SecurityContext if valid
+                 * JWT Authentication Filter (Spring Boot 3/4 compatible)
                  */
                 @Component
                 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-                    
+                
                     private final JwtService jwtService;
                     private final UserDetailsService userDetailsService;
-                    
-                    public JwtAuthenticationFilter(JwtService jwtService, 
-                                                  UserDetailsService userDetailsService) {
+                
+                    public JwtAuthenticationFilter(JwtService jwtService,
+                                                   UserDetailsService userDetailsService) {
                         this.jwtService = jwtService;
                         this.userDetailsService = userDetailsService;
                     }
-                    
+                
                     @Override
                     protected void doFilterInternal(
                             @NonNull HttpServletRequest request,
                             @NonNull HttpServletResponse response,
                             @NonNull FilterChain filterChain
                     ) throws ServletException, IOException {
-                        
+                
                         final String authHeader = request.getHeader("Authorization");
-                        final String jwt;
-                        final String username;
-                        
-                        // Check if Authorization header is present and starts with "Bearer "
+                
                         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                             filterChain.doFilter(request, response);
                             return;
                         }
-                        
-                        // Extract JWT token
-                        jwt = authHeader.substring(7);
-                        username = jwtService.extractUsername(jwt);
-                        
-                        // Validate token and set authentication
+                
+                        final String jwt = authHeader.substring(7);
+                        final String username = jwtService.extractUsername(jwt);
+                
                         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                            UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
-                            
+                            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                
                             if (jwtService.isTokenValid(jwt, userDetails)) {
-                                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                                        userDetails,
-                                        null,
-                                        userDetails.getAuthorities()
-                                );
+                                UsernamePasswordAuthenticationToken authToken =
+                                        new UsernamePasswordAuthenticationToken(
+                                                userDetails,
+                                                null,
+                                                userDetails.getAuthorities()
+                                        );
+                
                                 authToken.setDetails(
                                         new WebAuthenticationDetailsSource().buildDetails(request)
                                 );
+                
                                 SecurityContextHolder.getContext().setAuthentication(authToken);
                             }
                         }
-                        
+                
                         filterChain.doFilter(request, response);
                     }
                 }
                 """, pkg);
 
         PsiFile file = PsiFileFactory.getInstance(project)
-                .createFileFromText(
-                        "JwtAuthenticationFilter.java",
-                        JavaFileType.INSTANCE,
-                        code
-                );
+                .createFileFromText("JwtAuthenticationFilter.java", JavaFileType.INSTANCE, code);
 
         dir.add(file);
     }
