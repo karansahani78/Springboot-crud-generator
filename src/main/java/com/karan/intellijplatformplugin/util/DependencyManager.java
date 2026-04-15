@@ -8,7 +8,7 @@ import java.nio.file.Path;
 
 public class DependencyManager {
 
-    public static void injectDependencies(Project project, boolean includeSecurity) {
+    public static void injectDependencies(Project project, boolean includeSecurity, String dbType) {
         try {
             Path basePath = Path.of(project.getBasePath());
 
@@ -16,9 +16,9 @@ public class DependencyManager {
             Path mavenFile = basePath.resolve("pom.xml");
 
             if (Files.exists(gradleFile)) {
-                injectGradleDependencies(gradleFile, includeSecurity);
+                injectGradleDependencies(gradleFile, includeSecurity, dbType);
             } else if (Files.exists(mavenFile)) {
-                injectMavenDependencies(mavenFile, includeSecurity);
+                injectMavenDependencies(mavenFile, includeSecurity, dbType);
             } else {
                 System.out.println("⚠️ No build file found (Gradle/Maven)");
             }
@@ -31,18 +31,24 @@ public class DependencyManager {
     // =========================
     // 🔹 GRADLE SUPPORT
     // =========================
-    private static void injectGradleDependencies(Path gradleFile, boolean includeSecurity) throws IOException {
+    private static void injectGradleDependencies(Path gradleFile, boolean includeSecurity, String dbType) throws IOException {
         String content = Files.readString(gradleFile);
         StringBuilder dependencies = new StringBuilder();
 
-        // Marker
         if (!content.contains("// 🔥 Auto-added by CRUD Generator")) {
             dependencies.append("\n\n// 🔥 Auto-added by CRUD Generator\n");
         }
 
-        // ✅ JPA (NEW - IMPORTANT)
-        if (!content.contains("spring-boot-starter-data-jpa")) {
+        boolean isMongo = "MongoDB".equalsIgnoreCase(dbType);
+
+        // ✅ JPA only for SQL DBs
+        if (!isMongo && !content.contains("spring-boot-starter-data-jpa")) {
             dependencies.append("implementation 'org.springframework.boot:spring-boot-starter-data-jpa'\n");
+        }
+
+        // ✅ MongoDB
+        if (isMongo && !content.contains("spring-boot-starter-data-mongodb")) {
+            dependencies.append("implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'\n");
         }
 
         // Base deps
@@ -61,7 +67,26 @@ public class DependencyManager {
                     """);
         }
 
-        // Security deps
+        // ================= DATABASE =================
+        switch (dbType) {
+            case "MySQL" -> {
+                if (!content.contains("mysql-connector-j")) {
+                    dependencies.append("runtimeOnly 'com.mysql:mysql-connector-j'\n");
+                }
+            }
+            case "PostgreSQL" -> {
+                if (!content.contains("postgresql")) {
+                    dependencies.append("runtimeOnly 'org.postgresql:postgresql'\n");
+                }
+            }
+            case "H2" -> {
+                if (!content.contains("h2")) {
+                    dependencies.append("runtimeOnly 'com.h2database:h2'\n");
+                }
+            }
+        }
+
+        // ================= SECURITY =================
         if (includeSecurity) {
             if (!content.contains("spring-boot-starter-security")) {
                 dependencies.append("implementation 'org.springframework.boot:spring-boot-starter-security'\n");
@@ -106,21 +131,32 @@ public class DependencyManager {
     // =========================
     // 🔹 MAVEN SUPPORT
     // =========================
-    private static void injectMavenDependencies(Path pomFile, boolean includeSecurity) throws IOException {
+    private static void injectMavenDependencies(Path pomFile, boolean includeSecurity, String dbType) throws IOException {
         String content = Files.readString(pomFile);
         StringBuilder dependencies = new StringBuilder();
 
-        // Marker
         if (!content.contains("<!-- 🔥 Auto-added by CRUD Generator -->")) {
             dependencies.append("\n\n<!-- 🔥 Auto-added by CRUD Generator -->\n");
         }
 
-        // ✅ JPA (NEW - IMPORTANT)
-        if (!content.contains("spring-boot-starter-data-jpa")) {
+        boolean isMongo = "MongoDB".equalsIgnoreCase(dbType);
+
+        // ✅ JPA only for SQL DBs
+        if (!isMongo && !content.contains("spring-boot-starter-data-jpa")) {
             dependencies.append("""
                     <dependency>
                         <groupId>org.springframework.boot</groupId>
                         <artifactId>spring-boot-starter-data-jpa</artifactId>
+                    </dependency>
+                    """);
+        }
+
+        // ✅ MongoDB
+        if (isMongo && !content.contains("spring-boot-starter-data-mongodb")) {
+            dependencies.append("""
+                    <dependency>
+                        <groupId>org.springframework.boot</groupId>
+                        <artifactId>spring-boot-starter-data-mongodb</artifactId>
                     </dependency>
                     """);
         }
@@ -155,9 +191,35 @@ public class DependencyManager {
                     """);
         }
 
-        // Security deps
-        if (includeSecurity) {
+        // ================= DATABASE =================
+        switch (dbType) {
+            case "MySQL" -> dependencies.append("""
+                    <dependency>
+                        <groupId>com.mysql</groupId>
+                        <artifactId>mysql-connector-j</artifactId>
+                        <scope>runtime</scope>
+                    </dependency>
+                    """);
 
+            case "PostgreSQL" -> dependencies.append("""
+                    <dependency>
+                        <groupId>org.postgresql</groupId>
+                        <artifactId>postgresql</artifactId>
+                        <scope>runtime</scope>
+                    </dependency>
+                    """);
+
+            case "H2" -> dependencies.append("""
+                    <dependency>
+                        <groupId>com.h2database</groupId>
+                        <artifactId>h2</artifactId>
+                        <scope>runtime</scope>
+                    </dependency>
+                    """);
+        }
+
+        // ================= SECURITY =================
+        if (includeSecurity) {
             if (!content.contains("spring-boot-starter-security")) {
                 dependencies.append("""
                         <dependency>

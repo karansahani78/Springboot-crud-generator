@@ -11,8 +11,10 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.DependencyManager;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
+import javax.swing.Icon;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Objects;
 
 /**
  * Action to generate complete CRUD code with optional security.
@@ -62,19 +64,11 @@ public class GenerateCrudAction extends AnAction {
             }
         }
 
-        // Ask user if they want to include Spring Security
+        // ================= SECURITY =================
         int securityChoice = Messages.showYesNoCancelDialog(
                 project,
                 """
                 Do you want to include Spring Security with JWT authentication?
-                
-                This will generate:
-                • JWT-based authentication
-                • User registration endpoint (/api/auth/register)
-                • User login endpoint (/api/auth/login)
-                • Role-based authorization (USER, ADMIN, MODERATOR)
-                • Password encryption with BCrypt
-                • Protected API endpoints
                 
                 Dependencies will be auto-added if missing.
                 """,
@@ -91,6 +85,33 @@ public class GenerateCrudAction extends AnAction {
 
         boolean includeSecurity = (securityChoice == Messages.YES);
 
+        // ================= DATABASE (OPTIONAL) =================
+        String[] dbOptions = {"None", "MySQL", "PostgreSQL", "MongoDB", "H2"};
+
+        // FIX: showChooseDialog signature is:
+        // (Object parentComponent, String message, String title,
+        //  Icon icon, String[] values, String initialValue)
+        int dbChoice = Messages.showChooseDialog(
+                project,
+                """
+                Select Database (Optional):
+                
+                • None → Configure later
+                • MySQL / PostgreSQL → SQL DB
+                • MongoDB → NoSQL
+                • H2 → In-memory DB
+                """,
+                "Select Database",
+                Messages.getQuestionIcon(),   // Icon  ← was missing / wrong type
+                dbOptions,                    // String[] values
+                dbOptions[0]                  // String initialValue
+        );
+
+        if (dbChoice == -1) return;
+
+        String selectedDb = dbOptions[dbChoice];
+        boolean isDbSelected = !Objects.equals(selectedDb, "None");
+
         try {
             ClassMeta meta = PsiDirectoryUtil.toClassMeta(psiClass);
 
@@ -103,7 +124,7 @@ public class GenerateCrudAction extends AnAction {
                 return;
             }
 
-            // ✅ Detect build tool
+            // ================= BUILD TOOL DETECTION =================
             String reloadMessage = "Reload your project";
             boolean isGradle = false;
             boolean isMaven = false;
@@ -112,7 +133,7 @@ public class GenerateCrudAction extends AnAction {
                 String basePath = project.getBasePath();
                 if (basePath != null) {
                     Path gradleFile = Path.of(basePath, "build.gradle");
-                    Path mavenFile = Path.of(basePath, "pom.xml");
+                    Path mavenFile  = Path.of(basePath, "pom.xml");
 
                     if (Files.exists(gradleFile)) {
                         reloadMessage = "Reload Gradle project";
@@ -124,13 +145,14 @@ public class GenerateCrudAction extends AnAction {
                 }
             } catch (Exception ignored) {}
 
-            // ✅ Inject dependencies
+            // ================= DEPENDENCY INJECTION =================
             try {
-                DependencyManager.injectDependencies(project, includeSecurity);
+                DependencyManager.injectDependencies(project, includeSecurity, selectedDb);
             } catch (Exception depEx) {
                 System.out.println("⚠️ Dependency injection failed: " + depEx.getMessage());
             }
 
+            // ================= GENERATION =================
             WriteCommandAction.runWriteCommandAction(project, () -> {
                 SwaggerConfigGenerator.generate(project, sourceRoot, meta, includeSecurity);
                 SwaggerReadmeGenerator.generate(project, sourceRoot, meta);
@@ -167,23 +189,26 @@ public class GenerateCrudAction extends AnAction {
                 ControllerGenerator.generate(project, sourceRoot, meta);
             });
 
-            // 🔥 NEW: DB Warning
-            String dbWarning = """
-                    
-                    ⚠️ DATABASE NOT CONFIGURED
-                    
-                    Spring Data JPA has been added, but no database is configured.
-                    
-                    To run the application:
-                    
-                    👉 Option 1 (Quick Start):
-                    Add H2 database
-                    
-                    👉 Option 2:
-                    Configure MySQL / PostgreSQL
-                    
-                    Otherwise application will fail at startup.
-                    """;
+            // ================= SMART DB WARNING =================
+            String dbWarning;
+
+            if (!isDbSelected) {
+                dbWarning = """
+                        
+                        ⚠️ DATABASE NOT CONFIGURED
+                        
+                        Configure DB manually later (MySQL / PostgreSQL / H2)
+                        """;
+            } else if (selectedDb.equals("MongoDB")) {
+                dbWarning = """
+                        
+                        🍃 MongoDB Selected
+                        ✔ Mongo dependency added
+                        ⚠ JPA will not be used
+                        """;
+            } else {
+                dbWarning = "🛢️ " + selectedDb + " driver added successfully";
+            }
 
             String securityMessage = includeSecurity ? """
                     
@@ -197,7 +222,7 @@ public class GenerateCrudAction extends AnAction {
                     ✅ Successfully generated CRUD for %s
                     
                     ✓ Swagger + OpenAPI
-                    ✓ JPA + Auditing
+                    ✓ JPA / Mongo
                     ✓ Pagination
                     ✓ Exception Handling
                     ✓ Full CRUD Layers
@@ -229,7 +254,6 @@ public class GenerateCrudAction extends AnAction {
         }
     }
 
-    // UNCHANGED
     @Override
     public void update(AnActionEvent e) {
         Presentation presentation = e.getPresentation();
