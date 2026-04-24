@@ -13,41 +13,16 @@ import java.util.List;
 /**
  * Generates Mapper classes with explicit field-by-field mapping.
  *
- * <p>Multi-entity changes — replaces {@code BeanUtils.copyProperties} with
- * hand-rolled setters for two critical reasons:
- * <ol>
- *   <li>{@code BeanUtils} matches by property name only — it cannot bridge
- *       {@code dto.departmentId} ↔ {@code entity.department} (different names,
- *       different types). It silently does nothing for every relationship field.</li>
- *   <li>Relationship fields must be handled asymmetrically:
- *       <ul>
- *         <li>{@code toEntity}    — skip ALL relationship fields (service sets them)</li>
- *         <li>{@code toDto}       — extract IDs from loaded entity objects</li>
- *         <li>{@code updateEntity}— skip ALL relationship fields (service re-resolves)</li>
- *       </ul>
- *   </li>
- * </ol>
- *
- * <p>Generated {@code toDto()} example for an {@code Employee} with
- * {@code @ManyToOne Department} and {@code @ManyToMany List<Role>}:
- * <pre>
- *   dto.setDepartmentId(entity.getDepartment() != null
- *       ? entity.getDepartment().getId() : null);
- *   dto.setRoleIds(entity.getRoles() != null
- *       ? entity.getRoles().stream()
- *           .map(r -> r.getId())
- *           .collect(Collectors.toList())
- *       : java.util.Collections.emptyList());
- * </pre>
+ * FIX SUMMARY:
+ * 1. buildToDtoRelationships uses allRels — now safe because DtoGenerator also
+ *    emits fields for ALL relationships (including inverse @OneToMany).
+ *    No more "dto.setCommentIds() but DTO has no commentIds field" mismatch.
+ * 2. buildImports deduplicates List/Collectors imports and uses
+ *    basePackage + ".entity" for related entity imports (not the raw
+ *    packageName which includes ".entity" and caused double-entity paths).
  */
 public class MapperGenerator {
 
-    /**
-     * Entry point — updated to accept {@code allEntities} to match the
-     * standard multi-entity generator contract.  The list is used to look up
-     * the ID type of related entities when building {@code toDto()} collection
-     * mappings (e.g. confirming the ID is {@code Long} vs {@code UUID}).
-     */
     public static void generate(
             Project project,
             PsiDirectory root,
@@ -58,33 +33,23 @@ public class MapperGenerator {
             throw new IllegalArgumentException("Project, root directory, and metadata cannot be null");
         }
 
-        String pkg       = meta.basePackage() + ".mapper";
-        PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
-
-        String className = meta.getClassName();
+        String pkg        = meta.basePackage() + ".mapper";
+        PsiDirectory dir  = PsiDirectoryUtil.createPackageDirs(root, pkg);
+        String className  = meta.getClassName();
         String basePackage = meta.basePackage();
 
-        // Relationships that appear in the DTO
-        // (inverse ONE_TO_MANY sides are excluded — they have no DTO field)
-        List<RelationshipMeta> dtoRels = meta.getDtoRelationships();
-
-        // All relationships (including inverse) needed for toDto() —
-        // we still want to read collection IDs from inverse sides for GET responses
+        // FIX: use allRels for BOTH toDto and the import builder.
+        // DtoGenerator now guarantees a field exists for every entry in allRels.
         List<RelationshipMeta> allRels = meta.getRelationships();
 
         boolean needsListImport = allRels.stream().anyMatch(RelationshipMeta::isCollection);
 
-        // ── Scalar field mapping blocks ────────────────────────────────────
-        String toEntityScalars   = buildToEntityScalars(meta);
-        String toDtoScalars      = buildToDtoScalars(meta);
+        String toEntityScalars     = buildToEntityScalars(meta);
+        String toDtoScalars        = buildToDtoScalars(meta);
         String updateEntityScalars = buildUpdateEntityScalars(meta);
+        String toDtoRelationships  = buildToDtoRelationships(allRels);
 
-        // ── Relationship mapping blocks ────────────────────────────────────
-        // toEntity / updateEntity: intentionally empty — service handles these
-        // toDto: extract IDs from loaded entity references
-        String toDtoRelationships = buildToDtoRelationships(allRels);
-
-        // ── Imports ───────────────────────────────────────────────────────
+        // FIX: pass basePackage explicitly so import paths are correct
         String imports = buildImports(basePackage, className, allRels, allEntities);
 
         String code = String.format("""
@@ -106,20 +71,8 @@ public class MapperGenerator {
                  */
                 public class %sMapper {
                 
-                    // Private constructor — static utility class
                     private %sMapper() {}
                 
-                    // ── toEntity ─────────────────────────────────────────────────────
-                
-                    /**
-                     * Converts a {@link %sDto} to a new {@link %s} entity.
-                     *
-                     * <p>Only scalar (non-relationship) fields are copied.
-                     * The caller (service layer) is responsible for setting
-                     * all relationship fields before persisting.
-                     *
-                     * @param dto source DTO; returns {@code null} if {@code dto} is {@code null}
-                     */
                     public static %s toEntity(%sDto dto) {
                         if (dto == null) return null;
                 
@@ -128,17 +81,6 @@ public class MapperGenerator {
                         return entity;
                     }
                 
-                    // ── toDto ────────────────────────────────────────────────────────
-                
-                    /**
-                     * Converts a {@link %s} entity to a {@link %sDto}.
-                     *
-                     * <p>Scalar fields are copied directly.
-                     * Relationship fields are converted to their ID equivalents
-                     * (e.g. {@code entity.getDepartment().getId()} → {@code dto.setDepartmentId(...)}).
-                     *
-                     * @param entity source entity; returns {@code null} if {@code entity} is {@code null}
-                     */
                     public static %sDto toDto(%s entity) {
                         if (entity == null) return null;
                 
@@ -148,18 +90,6 @@ public class MapperGenerator {
                         return dto;
                     }
                 
-                    // ── updateEntity ─────────────────────────────────────────────────
-                
-                    /**
-                     * Applies scalar fields from {@code dto} onto an existing {@code entity}.
-                     *
-                     * <p>The entity's primary key ({@code id}) is never overwritten.
-                     * Relationship fields are deliberately skipped — the service layer
-                     * re-resolves and re-sets them on every update call.
-                     *
-                     * @param entity target entity (must not be {@code null})
-                     * @param dto    source DTO   (must not be {@code null})
-                     */
                     public static void updateEntity(%s entity, %sDto dto) {
                         if (entity == null || dto == null) return;
                 
@@ -167,22 +97,20 @@ public class MapperGenerator {
                     }
                 }
                 """,
-                pkg,                        // package statement
-                imports,                    // import block
-                className, className,       // Javadoc @link
-                className,                  // class name
-                className,                  // private constructor
-                className, className,       // toEntity Javadoc
-                className, className,       // toEntity signature
-                className, className,       // entity = new Entity()
-                toEntityScalars,            // entity.setX(dto.getX()); ...
-                className, className,       // toDto Javadoc
-                className, className,       // toDto signature
-                className, className,       // dto = new Dto()
-                toDtoScalars,              // dto.setX(entity.getX()); ...
-                toDtoRelationships,        // dto.setDeptId(entity.getDept().getId()); ...
-                className, className,       // updateEntity signature
-                updateEntityScalars        // entity.setX(dto.getX()); ...
+                pkg,
+                imports,
+                className, className,
+                className,
+                className,
+                className, className,
+                className, className,
+                toEntityScalars,
+                className, className,
+                className, className,
+                toDtoScalars,
+                toDtoRelationships,
+                className, className,
+                updateEntityScalars
         );
 
         PsiFile file = PsiFileFactory.getInstance(project)
@@ -196,13 +124,9 @@ public class MapperGenerator {
     }
 
     // =========================================================================
-    // Scalar mapping builders
+    // Scalar mapping builders (unchanged logic)
     // =========================================================================
 
-    /**
-     * Generates {@code entity.setX(dto.getX())} for every non-id scalar field.
-     * Relationship fields are completely absent — that is intentional.
-     */
     private static String buildToEntityScalars(ClassMeta meta) {
         StringBuilder sb = new StringBuilder();
         for (FieldMeta f : meta.getNonIdFields()) {
@@ -214,11 +138,6 @@ public class MapperGenerator {
         return sb.toString();
     }
 
-    /**
-     * Generates {@code dto.setX(entity.getX())} for every non-id scalar field.
-     * Relationship ID extraction is handled separately in
-     * {@link #buildToDtoRelationships(List)}.
-     */
     private static String buildToDtoScalars(ClassMeta meta) {
         StringBuilder sb = new StringBuilder();
         for (FieldMeta f : meta.getNonIdFields()) {
@@ -230,10 +149,6 @@ public class MapperGenerator {
         return sb.toString();
     }
 
-    /**
-     * Same as {@link #buildToEntityScalars} — used for the {@code updateEntity} method.
-     * ID is always excluded (the entity keeps its own PK).
-     */
     private static String buildUpdateEntityScalars(ClassMeta meta) {
         StringBuilder sb = new StringBuilder();
         for (FieldMeta f : meta.getNonIdFields()) {
@@ -247,29 +162,10 @@ public class MapperGenerator {
 
     // =========================================================================
     // Relationship → ID extraction for toDto()
+    // FIX: safe because DTO now contains ALL relationship fields (including
+    //      inverse @OneToMany) — no setter call is ever "orphaned".
     // =========================================================================
 
-    /**
-     * Generates null-safe ID extraction from loaded entity references.
-     *
-     * <p>Uses ALL relationships (including inverse ONE_TO_MANY) so that GET
-     * responses include the full picture of associations even when the current
-     * entity is not the owner.
-     *
-     * <p>Examples:
-     * <pre>
-     *   // MANY_TO_ONE / ONE_TO_ONE
-     *   dto.setDepartmentId(entity.getDepartment() != null
-     *       ? entity.getDepartment().getId() : null);
-     *
-     *   // ONE_TO_MANY / MANY_TO_MANY
-     *   dto.setRoleIds(entity.getRoles() != null
-     *       ? entity.getRoles().stream()
-     *           .map(r -> r.getId())
-     *           .collect(Collectors.toList())
-     *       : java.util.Collections.emptyList());
-     * </pre>
-     */
     private static String buildToDtoRelationships(List<RelationshipMeta> allRels) {
         if (allRels.isEmpty()) return "";
 
@@ -277,41 +173,34 @@ public class MapperGenerator {
         sb.append("\n        // ── Relationship ID extraction ────────────────────────────\n");
 
         for (RelationshipMeta rel : allRels) {
-            String fieldName      = rel.getFieldName();       // "department" / "roles"
+            String fieldName        = rel.getFieldName();
             String capitalizedField = Character.toUpperCase(fieldName.charAt(0))
-                    + fieldName.substring(1);                 // "Department" / "Roles"
-
-            // The DTO setter name differs from the entity field name:
-            // entity.getDepartment() → dto.setDepartmentId()
-            // entity.getRoles()      → dto.setRoleIds()
+                    + fieldName.substring(1);
             String dtoSetter = "set" + rel.getCapitalisedDtoIdFieldName();
 
             if (rel.isCollection()) {
-                // Use a short single-letter lambda variable derived from entity name
                 String lambdaVar = String.valueOf(
                         Character.toLowerCase(rel.getRelatedEntityName().charAt(0)));
 
-                sb.append(String.format("""
-                        dto.%s(entity.get%s() != null
-                                ? entity.get%s().stream()
-                                    .map(%s -> %s.getId())
-                                    .collect(Collectors.toList())
-                                : java.util.Collections.emptyList());
-                        """,
+                sb.append(String.format(
+                        "        dto.%s(entity.get%s() != null\n"
+                                + "                ? entity.get%s().stream()\n"
+                                + "                    .map(%s -> %s.getId())\n"
+                                + "                    .collect(Collectors.toList())\n"
+                                + "                : java.util.Collections.emptyList());\n",
                         dtoSetter,
-                        capitalizedField,  // entity.getRoles()
-                        capitalizedField,  // .stream()
-                        lambdaVar,         // r ->
-                        lambdaVar          // r.getId()
+                        capitalizedField,
+                        capitalizedField,
+                        lambdaVar,
+                        lambdaVar
                 ));
             } else {
-                sb.append(String.format("""
-                        dto.%s(entity.get%s() != null
-                                ? entity.get%s().getId() : null);
-                        """,
+                sb.append(String.format(
+                        "        dto.%s(entity.get%s() != null\n"
+                                + "                ? entity.get%s().getId() : null);\n",
                         dtoSetter,
-                        capitalizedField,  // entity.getDepartment()
-                        capitalizedField   // .getId()
+                        capitalizedField,
+                        capitalizedField
                 ));
             }
         }
@@ -321,6 +210,9 @@ public class MapperGenerator {
 
     // =========================================================================
     // Import builder
+    // FIX 1: List and Collectors imports are deduplicated (added once, not per rel).
+    // FIX 2: Related entity imports use basePackage + ".entity" so the path is
+    //        never "com.karan.app.entity.entity.User" (double .entity).
     // =========================================================================
 
     private static String buildImports(
@@ -331,25 +223,37 @@ public class MapperGenerator {
     ) {
         StringBuilder sb = new StringBuilder();
 
-        // Entity and DTO
+        // Own entity and DTO
         sb.append(String.format("import %s.entity.%s;\n", basePackage, className));
         sb.append(String.format("import %s.dto.%sDto;\n", basePackage, className));
 
-        // Related entity imports (for toDto() type references in Javadoc & cast safety)
+        // FIX: track whether we need List/Collectors — add once at the end
+        boolean needsCollectionImports = false;
+
         for (RelationshipMeta rel : allRels) {
             String relEntity = rel.getRelatedEntityName();
-            String relPackage = allEntities.stream()
-                    .filter(e -> e.getClassName().equals(relEntity))
-                    .map(ClassMeta::getPackageName)
-                    .findFirst()
-                    .orElse(basePackage + ".entity");
 
-            sb.append(String.format("import %s.%s;\n", relPackage, relEntity));
+            // FIX: build the import path from basePackage + ".entity", NOT from
+            // the related entity's raw packageName (which already ends in .entity).
+            // Fallback: if the entity is found in allEntities, verify the base
+            // matches; otherwise default to basePackage.entity.
+            String relBasePackage = allEntities.stream()
+                    .filter(e -> e.getClassName().equals(relEntity))
+                    .map(e -> e.basePackage()) // basePackage() already strips .entity
+                    .findFirst()
+                    .orElse(basePackage);
+
+            sb.append(String.format("import %s.entity.%s;\n", relBasePackage, relEntity));
 
             if (rel.isCollection()) {
-                sb.append("import java.util.List;\n");
-                sb.append("import java.util.stream.Collectors;\n");
+                needsCollectionImports = true;
             }
+        }
+
+        // FIX: emit List and Collectors exactly once
+        if (needsCollectionImports) {
+            sb.append("import java.util.List;\n");
+            sb.append("import java.util.stream.Collectors;\n");
         }
 
         return sb.toString();

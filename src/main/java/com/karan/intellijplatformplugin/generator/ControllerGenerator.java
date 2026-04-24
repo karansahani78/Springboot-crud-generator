@@ -26,6 +26,9 @@ import java.util.List;
  *       instead of naive {@code toLowerCase()} which produced {@code orderitem}.</li>
  *   <li>Replaced 78-arg positional {@code String.format} with a builder method —
  *       each endpoint is assembled independently and is readable.</li>
+ *   <li>Entity import now always uses {@code basePackage + ".entity"} — never
+ *       {@code meta.getPackageName()} which pointed at the plugin's internal
+ *       {@code .model} package.</li>
  * </ul>
  */
 public class ControllerGenerator {
@@ -49,8 +52,17 @@ public class ControllerGenerator {
         String urlPath   = toKebabCase(entity) + "s";       // "order-items"
         String varName   = meta.getVariableName();           // "orderItem"
 
+        // ✅ FIX: always derive the entity package from basePkg + ".entity".
+        //    Previously meta.getPackageName() was used here, which returned the
+        //    plugin's internal .model package (e.g. com.plugin.plugin.model)
+        //    and produced a broken import like:
+        //        import com.plugin.plugin.model.User;   ❌
+        //    Now the generated import is always:
+        //        import com.plugin.plugin.entity.User;  ✅
+        String entityPackage = basePkg + ".entity";
+
         String code = buildControllerCode(
-                basePkg, controllerPkg, meta.getPackageName(),
+                basePkg, controllerPkg, entityPackage,
                 entity, idType, urlPath, varName
         );
 
@@ -132,7 +144,7 @@ public class ControllerGenerator {
                 import java.util.stream.Collectors;
                 
                 """,
-                entityPackage, entity,       // entity import
+                entityPackage, entity,       // ✅ entity import → basePkg.entity.ClassName
                 basePkg, entity,             // DTO import
                 basePkg,                     // ErrorResponse
                 basePkg,                     // PageResponse

@@ -14,7 +14,8 @@ import java.util.Objects;
 public class ClassMeta {
 
     private final String className;
-    private final String packageName;
+    private final String packageName;   // rawPackage  — e.g. com.karan.app.entity
+    private final String basePackage;   // resolved    — e.g. com.karan.app
     private final String idType;
 
     /** Plain scalar / value-type fields (NOT relationship fields). */
@@ -31,11 +32,13 @@ public class ClassMeta {
     // -----------------------------------------------------------------------
 
     /**
-     * Full constructor — used by PsiDirectoryUtil when relationships are known.
+     * Full 6-param constructor — used by PsiDirectoryUtil which passes
+     * rawPackage and basePackage separately after calling resolveBasePackage().
      */
     public ClassMeta(
             String className,
             String packageName,
+            String basePackage,
             String idType,
             List<FieldMeta> fields,
             List<RelationshipMeta> relationships
@@ -50,15 +53,30 @@ public class ClassMeta {
             throw new IllegalArgumentException("ID type cannot be null or empty");
         }
 
-        this.className     = className;
-        this.packageName   = packageName;
-        this.idType        = idType;
+        this.className   = className;
+        this.packageName = packageName;
+        this.basePackage = (basePackage != null && !basePackage.isBlank()) ? basePackage : deriveBasePackage(packageName);
+        this.idType      = idType;
         this.fields        = fields        != null ? new ArrayList<>(fields)        : new ArrayList<>();
         this.relationships = relationships != null ? new ArrayList<>(relationships) : new ArrayList<>();
     }
 
     /**
-     * Backward-compatible constructor — no relationships.
+     * Backward-compatible 5-param constructor — derives basePackage automatically.
+     * Existing call sites that pass only 5 args continue to compile.
+     */
+    public ClassMeta(
+            String className,
+            String packageName,
+            String idType,
+            List<FieldMeta> fields,
+            List<RelationshipMeta> relationships
+    ) {
+        this(className, packageName, deriveBasePackage(packageName), idType, fields, relationships);
+    }
+
+    /**
+     * Backward-compatible 4-param constructor — no relationships.
      * Existing call sites that pass only 4 args continue to compile.
      */
     public ClassMeta(
@@ -71,6 +89,18 @@ public class ClassMeta {
     }
 
     // -----------------------------------------------------------------------
+    // Private helpers
+    // -----------------------------------------------------------------------
+
+    private static String deriveBasePackage(String packageName) {
+        if (packageName == null || packageName.isEmpty()) return "";
+        if (packageName.endsWith(".entity"))   return packageName.substring(0, packageName.length() - ".entity".length());
+        if (packageName.endsWith(".entities")) return packageName.substring(0, packageName.length() - ".entities".length());
+        if (packageName.endsWith(".model"))    return packageName.substring(0, packageName.length() - ".model".length());
+        return packageName;
+    }
+
+    // -----------------------------------------------------------------------
     // Core accessors
     // -----------------------------------------------------------------------
 
@@ -78,8 +108,14 @@ public class ClassMeta {
         return className;
     }
 
+    /** The raw entity package — e.g. {@code com.karan.app.entity} */
     public String getPackageName() {
         return packageName;
+    }
+
+    /** The resolved base/application package — e.g. {@code com.karan.app} */
+    public String getBasePackage() {
+        return basePackage;
     }
 
     public String getIdType() {
@@ -101,22 +137,15 @@ public class ClassMeta {
     // -----------------------------------------------------------------------
 
     /**
-     * Returns the base package by stripping the last segment when it is
-     * {@code "model"} or {@code "entity"}.
-     *
-     * <p>e.g. {@code com.example.entity} → {@code com.example}
+     * Returns the resolved base package (stored value — no re-computation).
+     * Replaces the old inline-derived version.
      */
     public String basePackage() {
-        if (packageName.endsWith(".model") || packageName.endsWith(".entity")) {
-            return packageName.substring(0, packageName.lastIndexOf('.'));
-        }
-        return packageName;
+        return basePackage;
     }
 
     /**
      * Returns scalar fields that are not the primary key.
-     * Relationship fields are already excluded because they live in
-     * {@link #relationships}, not in {@link #fields}.
      */
     public List<FieldMeta> getNonIdFields() {
         return fields.stream()
@@ -137,8 +166,6 @@ public class ClassMeta {
 
     /**
      * Convenience: MANY_TO_ONE and ONE_TO_ONE relationships only.
-     * These are the FK-owning sides that the service must fetch by ID
-     * before saving the entity.
      */
     public List<RelationshipMeta> getSingularRelationships() {
         return relationships.stream()
@@ -148,7 +175,6 @@ public class ClassMeta {
 
     /**
      * Convenience: ONE_TO_MANY and MANY_TO_MANY relationships only.
-     * These require fetching a {@code List} of related entities by their IDs.
      */
     public List<RelationshipMeta> getCollectionRelationships() {
         return relationships.stream()
@@ -158,7 +184,6 @@ public class ClassMeta {
 
     /**
      * Returns true if this entity has at least one JPA relationship.
-     * Used by generators to decide whether to emit extra repository injections.
      */
     public boolean hasRelationships() {
         return !relationships.isEmpty();
@@ -195,6 +220,7 @@ public class ClassMeta {
         return "ClassMeta{"
                 + "className='" + className + '\''
                 + ", packageName='" + packageName + '\''
+                + ", basePackage='" + basePackage + '\''
                 + ", idType='" + idType + '\''
                 + ", fields=" + fields.size()
                 + ", relationships=" + relationships.size()

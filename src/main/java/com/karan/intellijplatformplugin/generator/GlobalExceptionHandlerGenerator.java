@@ -68,7 +68,7 @@ public class GlobalExceptionHandlerGenerator {
                 import org.springframework.http.ResponseEntity;
                 import org.springframework.http.converter.HttpMessageNotReadableException;
                 import org.springframework.validation.FieldError;
-                import org.springframework.web.HttpRequestMethodNotAllowedException;
+                import org.springframework.web.server.MethodNotAllowedException;
                 import org.springframework.web.bind.MethodArgumentNotValidException;
                 import org.springframework.web.bind.annotation.ExceptionHandler;
                 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -148,9 +148,9 @@ public class GlobalExceptionHandlerGenerator {
                      * <p>Each field error is collected into {@code ErrorResponse.details}
                      * so the caller knows exactly which DTO fields are invalid.
                      */
-                    @ExceptionHandler(MethodArgumentNotValidException.class)
-                    public ResponseEntity<ErrorResponse> handleValidation(
-                            MethodArgumentNotValidException ex, WebRequest request) {
+                    @ExceptionHandler(MethodNotAllowedException.class)
+                    public ResponseEntity<ErrorResponse> handleMethodNotAllowed(
+                            MethodNotAllowedException ex, WebRequest request){
                 
                         log.warn("Validation failed: {} field error(s)", ex.getBindingResult().getErrorCount());
                 

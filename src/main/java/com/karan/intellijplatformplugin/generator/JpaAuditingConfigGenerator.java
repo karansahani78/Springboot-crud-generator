@@ -7,21 +7,33 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.FileExistsUtil;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
+import java.util.List;
+
 /**
  * Generates JPA Auditing configuration.
+ *
+ * <p>Multi-entity change: accepts {@code List<ClassMeta> allEntities} — standard
+ * contract. The generated {@code JpaAuditingConfig} is a singleton bean that
+ * does not vary per entity, so the list is intentionally unused in the output.
  */
 public class JpaAuditingConfigGenerator {
 
-    public static void generate(Project project, PsiDirectory root, ClassMeta meta, boolean withSecurity) {
+    public static void generate(
+            Project project,
+            PsiDirectory root,
+            ClassMeta meta,
+            List<ClassMeta> allEntities,  // ← standard contract; unused in output
+            boolean withSecurity
+    ) {
         if (project == null || root == null || meta == null) {
             throw new IllegalArgumentException("Project, root directory, and metadata cannot be null");
         }
 
-        String pkg = meta.basePackage() + ".config";
+        String pkg      = meta.basePackage() + ".config";
+        String fileName = "JpaAuditingConfig.java";
 
-        // ✅ CHECK IF FILE ALREADY EXISTS
-        if (FileExistsUtil.fileExistsInPackage(root, pkg, "JpaAuditingConfig.java")) {
-            System.out.println("JpaAuditingConfig.java already exists, skipping generation.");
+        if (FileExistsUtil.fileExistsInPackage(root, pkg, fileName)) {
+            System.out.println("ℹ️  " + fileName + " already exists — skipping generation.");
             return;
         }
 
@@ -30,7 +42,6 @@ public class JpaAuditingConfigGenerator {
         String code;
 
         if (withSecurity) {
-            // Version with Spring Security integration
             code = String.format("""
                     package %s;
                     
@@ -44,16 +55,16 @@ public class JpaAuditingConfigGenerator {
                     import java.util.Optional;
                     
                     /**
-                     * Configuration for JPA Auditing integrated with Spring Security.
-                     * Automatically tracks createdBy and updatedBy using authenticated username.
+                     * JPA Auditing configuration integrated with Spring Security.
+                     * Automatically tracks createdBy / updatedBy using the authenticated username.
                      */
                     @Configuration
                     @EnableJpaAuditing(auditorAwareRef = "auditorProvider")
                     public class JpaAuditingConfig {
                         
                         /**
-                         * Provides the current auditor from Spring Security context.
-                         * Returns authenticated username or "anonymous" if not authenticated.
+                         * Provides the current auditor from the Spring Security context.
+                         * Returns the authenticated username, or "anonymous" if no principal is present.
                          */
                         @Bean
                         public AuditorAware<String> auditorProvider() {
@@ -66,14 +77,12 @@ public class JpaAuditingConfigGenerator {
                                     return Optional.of("anonymous");
                                 }
                                 
-                                // Returns username of authenticated user
                                 return Optional.of(authentication.getName());
                             };
                         }
                     }
                     """, pkg);
         } else {
-            // Version without Spring Security
             code = String.format("""
                     package %s;
                     
@@ -85,41 +94,26 @@ public class JpaAuditingConfigGenerator {
                     import java.util.Optional;
                     
                     /**
-                     * Configuration for JPA Auditing.
-                     * Enables automatic population of @CreatedDate, @LastModifiedDate, @CreatedBy, @LastModifiedBy.
+                     * JPA Auditing configuration.
+                     * Enables automatic population of @CreatedDate, @LastModifiedDate,
+                     * @CreatedBy, and @LastModifiedBy on entities extending BaseAuditEntity.
+                     *
+                     * <p>To integrate with Spring Security, replace the auditorProvider() body with:
+                     * <pre>
+                     * return () -> {
+                     *     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+                     *     if (auth == null || !auth.isAuthenticated()) return Optional.of("system");
+                     *     return Optional.of(auth.getName());
+                     * };
+                     * </pre>
                      */
                     @Configuration
                     @EnableJpaAuditing(auditorAwareRef = "auditorProvider")
                     public class JpaAuditingConfig {
                         
-                        /**
-                         * Provides the current auditor (user who is creating/modifying the entity).
-                         * 
-                         * Default implementation returns "system".
-                         * 
-                         * To integrate with Spring Security, modify this to return the authenticated user:
-                         * 
-                         * <pre>
-                         * {@code
-                         * @Bean
-                         * public AuditorAware<String> auditorProvider() {
-                         *     return () -> {
-                         *         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-                         *         if (authentication == null || !authentication.isAuthenticated()) {
-                         *             return Optional.of("system");
-                         *         }
-                         *         return Optional.of(authentication.getName());
-                         *     };
-                         * }
-                         * }
-                         * </pre>
-                         * 
-                         * @return AuditorAware bean
-                         */
                         @Bean
                         public AuditorAware<String> auditorProvider() {
-                            // Default implementation - returns "system"
-                            // TODO: Integrate with authentication to get actual user
+                            // Default: "system" — integrate with Spring Security for real usernames
                             return () -> Optional.of("system");
                         }
                     }
@@ -127,12 +121,9 @@ public class JpaAuditingConfigGenerator {
         }
 
         PsiFile file = PsiFileFactory.getInstance(project)
-                .createFileFromText(
-                        "JpaAuditingConfig.java",
-                        JavaFileType.INSTANCE,
-                        code
-                );
+                .createFileFromText(fileName, JavaFileType.INSTANCE, code);
 
         dir.add(file);
+        System.out.println("✅ Generated " + fileName);
     }
 }

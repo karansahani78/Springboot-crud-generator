@@ -7,21 +7,33 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.FileExistsUtil;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
+import java.util.List;
+
 /**
  * Generates OpenAPI 3.0 configuration (Springdoc) with optional JWT security.
+ *
+ * <p>Multi-entity change: accepts {@code List<ClassMeta> allEntities} — standard
+ * contract. The generated {@code OpenApiConfig} itself is a singleton bean that
+ * does not vary per-entity, so the list is intentionally unused in the output.
  */
 public class SwaggerConfigGenerator {
 
-    public static void generate(Project project, PsiDirectory root, ClassMeta meta, boolean includeSecurity) {
+    public static void generate(
+            Project project,
+            PsiDirectory root,
+            ClassMeta meta,
+            List<ClassMeta> allEntities,  // ← standard contract; unused in output
+            boolean includeSecurity
+    ) {
         if (project == null || root == null || meta == null) {
             throw new IllegalArgumentException("Project, root directory, and metadata cannot be null");
         }
 
-        String pkg = meta.basePackage() + ".config";
+        String pkg      = meta.basePackage() + ".config";
+        String fileName = "OpenApiConfig.java";
 
-        // ✅ CHECK IF FILE ALREADY EXISTS
-        if (FileExistsUtil.fileExistsInPackage(root, pkg, "OpenApiConfig.java")) {
-            System.out.println("OpenApiConfig.java already exists, skipping generation.");
+        if (FileExistsUtil.fileExistsInPackage(root, pkg, fileName)) {
+            System.out.println("ℹ️  " + fileName + " already exists — skipping generation.");
             return;
         }
 
@@ -49,7 +61,6 @@ public class SwaggerConfigGenerator {
                         SecurityRequirement securityRequirement = new SecurityRequirement()
                                 .addList("bearerAuth");
                         
-                        // Build and return OpenAPI configuration with JWT security
                         return new OpenAPI()
                                 .servers(List.of(localServer))
                                 .info(info)
@@ -57,7 +68,6 @@ public class SwaggerConfigGenerator {
                                 .addSecurityItem(securityRequirement);
                 """ : """
                         
-                        // Build and return OpenAPI configuration
                         return new OpenAPI()
                                 .servers(List.of(localServer))
                                 .info(info);
@@ -92,28 +102,24 @@ public class SwaggerConfigGenerator {
                     
                     @Bean
                     public OpenAPI customOpenAPI() {
-                        // Create server configuration
                         Server localServer = new Server();
                         localServer.setUrl("http://localhost:" + serverPort);
                         localServer.setDescription("Local Development Server");
                         
-                        // Create contact information
                         Contact contact = new Contact();
                         contact.setName("API Support Team");
                         contact.setEmail("support@example.com");
                         contact.setUrl("https://www.example.com");
                         
-                        // Create license information
                         License license = new License();
                         license.setName("MIT License");
                         license.setUrl("https://opensource.org/licenses/MIT");
                         
-                        // Create API information
                         Info info = new Info()
                                 .title(applicationName + " API Documentation")
                                 .version("1.0.0")
-                                .description("RESTful API documentation for " + applicationName + 
-                                           ". This API provides comprehensive CRUD operations for managing resources.")
+                                .description("RESTful API documentation for " + applicationName +
+                                           ". Provides comprehensive CRUD operations.")
                                 .contact(contact)
                                 .license(license);
                 %s
@@ -122,12 +128,9 @@ public class SwaggerConfigGenerator {
                 """, pkg, securityImports, securityConfiguration);
 
         PsiFile file = PsiFileFactory.getInstance(project)
-                .createFileFromText(
-                        "OpenApiConfig.java",
-                        JavaFileType.INSTANCE,
-                        code
-                );
+                .createFileFromText(fileName, JavaFileType.INSTANCE, code);
 
         dir.add(file);
+        System.out.println("✅ Generated " + fileName);
     }
 }

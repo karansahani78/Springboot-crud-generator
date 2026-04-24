@@ -41,17 +41,14 @@ public class DependencyManager {
 
         boolean isMongo = "MongoDB".equalsIgnoreCase(dbType);
 
-        // ✅ JPA only for SQL DBs
         if (!isMongo && !content.contains("spring-boot-starter-data-jpa")) {
             dependencies.append("implementation 'org.springframework.boot:spring-boot-starter-data-jpa'\n");
         }
 
-        // ✅ MongoDB
         if (isMongo && !content.contains("spring-boot-starter-data-mongodb")) {
             dependencies.append("implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'\n");
         }
 
-        // Base deps
         if (!content.contains("spring-boot-starter-validation")) {
             dependencies.append("implementation 'org.springframework.boot:spring-boot-starter-validation'\n");
         }
@@ -60,14 +57,14 @@ public class DependencyManager {
             dependencies.append("implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'\n");
         }
 
+        // FIXED: explicit Lombok version 1.18.30
         if (!content.contains("lombok")) {
             dependencies.append("""
-                    compileOnly 'org.projectlombok:lombok'
-                    annotationProcessor 'org.projectlombok:lombok'
+                    compileOnly 'org.projectlombok:lombok:1.18.30'
+                    annotationProcessor 'org.projectlombok:lombok:1.18.30'
                     """);
         }
 
-        // ================= DATABASE =================
         switch (dbType) {
             case "MySQL" -> {
                 if (!content.contains("mysql-connector-j")) {
@@ -86,20 +83,16 @@ public class DependencyManager {
             }
         }
 
-        // ================= SECURITY =================
         if (includeSecurity) {
             if (!content.contains("spring-boot-starter-security")) {
                 dependencies.append("implementation 'org.springframework.boot:spring-boot-starter-security'\n");
             }
-
             if (!content.contains("jjwt-api")) {
                 dependencies.append("implementation 'io.jsonwebtoken:jjwt-api:0.11.5'\n");
             }
-
             if (!content.contains("jjwt-impl")) {
                 dependencies.append("runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'\n");
             }
-
             if (!content.contains("jjwt-jackson")) {
                 dependencies.append("runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'\n");
             }
@@ -111,20 +104,17 @@ public class DependencyManager {
         }
 
         int index = content.indexOf("dependencies {");
-
         if (index == -1) {
             System.out.println("⚠️ Gradle: No dependencies block found");
             return;
         }
 
         int insertPosition = index + "dependencies {".length();
-
         content = content.substring(0, insertPosition)
                 + "\n" + dependencies
                 + content.substring(insertPosition);
 
         Files.writeString(gradleFile, content);
-
         System.out.println("✅ Gradle dependencies injected successfully!");
     }
 
@@ -141,7 +131,6 @@ public class DependencyManager {
 
         boolean isMongo = "MongoDB".equalsIgnoreCase(dbType);
 
-        // ✅ JPA only for SQL DBs
         if (!isMongo && !content.contains("spring-boot-starter-data-jpa")) {
             dependencies.append("""
                     <dependency>
@@ -151,7 +140,6 @@ public class DependencyManager {
                     """);
         }
 
-        // ✅ MongoDB
         if (isMongo && !content.contains("spring-boot-starter-data-mongodb")) {
             dependencies.append("""
                     <dependency>
@@ -161,7 +149,6 @@ public class DependencyManager {
                     """);
         }
 
-        // Base deps
         if (!content.contains("spring-boot-starter-validation")) {
             dependencies.append("""
                     <dependency>
@@ -181,17 +168,18 @@ public class DependencyManager {
                     """);
         }
 
+        // FIXED: explicit Lombok version 1.18.30
         if (!content.contains("<artifactId>lombok</artifactId>")) {
             dependencies.append("""
                     <dependency>
                         <groupId>org.projectlombok</groupId>
                         <artifactId>lombok</artifactId>
+                        <version>1.18.30</version>
                         <optional>true</optional>
                     </dependency>
                     """);
         }
 
-        // ================= DATABASE =================
         switch (dbType) {
             case "MySQL" -> dependencies.append("""
                     <dependency>
@@ -200,7 +188,6 @@ public class DependencyManager {
                         <scope>runtime</scope>
                     </dependency>
                     """);
-
             case "PostgreSQL" -> dependencies.append("""
                     <dependency>
                         <groupId>org.postgresql</groupId>
@@ -208,7 +195,6 @@ public class DependencyManager {
                         <scope>runtime</scope>
                     </dependency>
                     """);
-
             case "H2" -> dependencies.append("""
                     <dependency>
                         <groupId>com.h2database</groupId>
@@ -218,7 +204,6 @@ public class DependencyManager {
                     """);
         }
 
-        // ================= SECURITY =================
         if (includeSecurity) {
             if (!content.contains("spring-boot-starter-security")) {
                 dependencies.append("""
@@ -228,7 +213,6 @@ public class DependencyManager {
                         </dependency>
                         """);
             }
-
             if (!content.contains("jjwt-api")) {
                 dependencies.append("""
                         <dependency>
@@ -238,7 +222,6 @@ public class DependencyManager {
                         </dependency>
                         """);
             }
-
             if (!content.contains("jjwt-impl")) {
                 dependencies.append("""
                         <dependency>
@@ -249,7 +232,6 @@ public class DependencyManager {
                         </dependency>
                         """);
             }
-
             if (!content.contains("jjwt-jackson")) {
                 dependencies.append("""
                         <dependency>
@@ -268,20 +250,17 @@ public class DependencyManager {
         }
 
         int index = content.indexOf("<dependencies>");
-
         if (index == -1) {
             System.out.println("⚠️ Maven: No <dependencies> block found");
             return;
         }
 
         int insertPosition = index + "<dependencies>".length();
-
         content = content.substring(0, insertPosition)
                 + "\n" + dependencies
                 + content.substring(insertPosition);
 
         Files.writeString(pomFile, content);
-
         System.out.println("✅ Maven dependencies injected successfully!");
     }
 }
