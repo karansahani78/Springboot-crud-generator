@@ -1,6 +1,7 @@
 package com.karan.intellijplatformplugin.action;
 
 import com.intellij.openapi.actionSystem.*;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
@@ -13,6 +14,7 @@ import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -112,21 +114,42 @@ public class GenerateCrudAction extends AnAction {
 
         try {
             // ================= PRIMARY ENTITY META =================
-            // Parse the selected entity as the "current" entity being generated
+            // Parse the selected entity first. Guard against null — PSI can
+            // return null if the file has unresolved symbols at parse time.
             ClassMeta meta = PsiDirectoryUtil.toClassMeta(psiClass);
+            if (meta == null) {
+                Messages.showErrorDialog(
+                        project,
+                        "Could not parse the selected class. " +
+                                "Ensure the file compiles without errors and retry.",
+                        "Parse Error"
+                );
+                return;
+            }
 
             // ================= MULTI-ENTITY CONTEXT =================
-            // Scan the entire project for all @Entity classes.
-            // This list is passed to every generator so that:
-            //   - DTOs can reference related entity IDs instead of entity objects
-            //   - Services can inject the correct repositories
-            //   - Mappers can resolve relationships correctly
-            List<ClassMeta> allEntities = PsiDirectoryUtil.getAllEntityMetas(project);
+            // Wrap inside ReadAction so PSI index queries are executed on a
+            // thread that holds the read lock — safe from EDT and background.
+            List<ClassMeta> scannedEntities = ReadAction.compute(
+                    () -> PsiDirectoryUtil.getAllEntityMetas(project)
+            );
 
-            // If the scan found nothing (e.g., PSI index not ready), fall back
-            // to just the selected entity so generation still succeeds.
+            // Build a mutable list so we can guarantee the primary entity is
+            // always present (the PSI index may not have flushed unsaved changes).
+            List<ClassMeta> allEntities = new ArrayList<>(scannedEntities);
+
+            boolean primaryEntityPresent = allEntities.stream()
+                    .anyMatch(m -> m.getClassName().equals(meta.getClassName()));
+
+            if (!primaryEntityPresent) {
+                // Insert at front so it's the "current" entity for generators
+                // that care about ordering.
+                allEntities.add(0, meta);
+            }
+
+            // Last-resort fallback: scan returned nothing at all.
             if (allEntities.isEmpty()) {
-                allEntities = List.of(meta);
+                allEntities = new ArrayList<>(List.of(meta));
             }
 
             PsiDirectory sourceRoot = PsiDirectoryUtil.getSourceRoot(file);
@@ -141,7 +164,7 @@ public class GenerateCrudAction extends AnAction {
             // ================= BUILD TOOL DETECTION =================
             String reloadMessage = "Reload your project";
             boolean isGradle = false;
-            boolean isMaven = false;
+            boolean isMaven  = false;
 
             try {
                 String basePath = project.getBasePath();
@@ -150,10 +173,10 @@ public class GenerateCrudAction extends AnAction {
                     Path mavenFile  = Path.of(basePath, "pom.xml");
 
                     if (Files.exists(gradleFile)) {
-                        reloadMessage = "Reload Gradle project";
+                        reloadMessage = "Reload Gradle project (Ctrl+Shift+O)";
                         isGradle = true;
                     } else if (Files.exists(mavenFile)) {
-                        reloadMessage = "Reload Maven project";
+                        reloadMessage = "Reload Maven project (Ctrl+Shift+M)";
                         isMaven = true;
                     }
                 }
@@ -166,56 +189,61 @@ public class GenerateCrudAction extends AnAction {
                 System.out.println("⚠️ Dependency injection failed: " + depEx.getMessage());
             }
 
-            // Capture final references for use inside lambda
+            // Capture final references for lambda (compiler requirement).
+            final ClassMeta       finalMeta        = meta;
             final List<ClassMeta> finalAllEntities = allEntities;
+            final boolean         finalSecurity    = includeSecurity;
 
             // ================= GENERATION =================
-            // Every generator now receives (project, sourceRoot, meta, finalAllEntities, includeSecurity?)
-            // so that each layer can resolve cross-entity relationships.
+            // Each generator call is wrapped individually so that one failure
+            // does NOT abort all subsequent generators — partial generation is
+            // always better than a hard stop mid-way.
             WriteCommandAction.runWriteCommandAction(project, () -> {
 
                 // --- Infrastructure / Config ---
-                SwaggerConfigGenerator.generate(project, sourceRoot, meta, finalAllEntities, includeSecurity);
-                SwaggerReadmeGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                ApplicationPropertiesGenerator.generate(project, sourceRoot, meta, finalAllEntities, includeSecurity);
+                runSafe("SwaggerConfig",     () -> SwaggerConfigGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities, finalSecurity));
+                runSafe("SwaggerReadme",     () -> SwaggerReadmeGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                runSafe("AppProperties",     () -> ApplicationPropertiesGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities, finalSecurity));
 
                 // --- Security (optional) ---
-                if (includeSecurity) {
-                    SecurityConfigGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                    JwtServiceGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                    JwtAuthenticationFilterGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                    UserEntityGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                    RoleEnumGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                    AppUserRepositoryGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                    UserDetailsServiceImplGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                    AuthenticationServiceGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                    AuthControllerGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                    AuthDtoGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                    SecurityReadmeGenerator.generate(project, sourceRoot, meta, finalAllEntities);
+                if (finalSecurity) {
+                    runSafe("SecurityConfig",          () -> SecurityConfigGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                    runSafe("JwtService",              () -> JwtServiceGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                    runSafe("JwtAuthFilter",           () -> JwtAuthenticationFilterGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                    runSafe("UserEntity",              () -> UserEntityGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                    runSafe("RoleEnum",                () -> RoleEnumGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                    runSafe("AppUserRepository",       () -> AppUserRepositoryGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                    runSafe("UserDetailsServiceImpl",  () -> UserDetailsServiceImplGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                    runSafe("AuthenticationService",   () -> AuthenticationServiceGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                    runSafe("AuthController",          () -> AuthControllerGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                    runSafe("AuthDto",                 () -> AuthDtoGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                    runSafe("SecurityReadme",          () -> SecurityReadmeGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
                 }
 
                 // --- Auditing ---
-                BaseAuditEntityGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                JpaAuditingConfigGenerator.generate(project, sourceRoot, meta, finalAllEntities, includeSecurity);
-                AuditingReadmeGenerator.generate(project, sourceRoot, meta, finalAllEntities);
+                runSafe("BaseAuditEntity",    () -> BaseAuditEntityGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                runSafe("JpaAuditingConfig",  () -> JpaAuditingConfigGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities, finalSecurity));
+                runSafe("AuditingReadme",     () -> AuditingReadmeGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
 
                 // --- Pagination ---
-                PaginationGenerator.generate(project, sourceRoot, meta, finalAllEntities);
+                runSafe("Pagination",         () -> PaginationGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
 
                 // --- Exception Handling ---
-                ExceptionGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                ErrorResponseGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                GlobalExceptionHandlerGenerator.generate(project, sourceRoot, meta, finalAllEntities);
+                runSafe("Exception",          () -> ExceptionGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                runSafe("ErrorResponse",      () -> ErrorResponseGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                runSafe("GlobalExHandler",    () -> GlobalExceptionHandlerGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
 
                 // --- Core CRUD Layers ---
-                // These are the critical generators that use allEntities to resolve
-                // relationships: DTO uses IDs, Mapper skips relations,
-                // Service fetches related entities via their repositories.
-                DtoGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                MapperGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                RepositoryGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                ServiceGenerator.generate(project, sourceRoot, meta, finalAllEntities);
-                ControllerGenerator.generate(project, sourceRoot, meta, finalAllEntities);
+                // These are the most relationship-sensitive generators:
+                //   DtoGenerator      → emits Long xxxId fields instead of entity refs
+                //   MapperGenerator   → skips relationship fields
+                //   ServiceGenerator  → fetches related entities via their repositories
+                //   ControllerGenerator → wires everything together
+                runSafe("Dto",         () -> DtoGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                runSafe("Mapper",      () -> MapperGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                runSafe("Repository",  () -> RepositoryGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                runSafe("Service",     () -> ServiceGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
+                runSafe("Controller",  () -> ControllerGenerator.generate(project, sourceRoot, finalMeta, finalAllEntities));
             });
 
             // ================= SMART DB WARNING =================
@@ -249,9 +277,14 @@ public class GenerateCrudAction extends AnAction {
 
             // Show how many entities were discovered so the user knows
             // multi-entity context was active during generation.
-            int entityCount = finalAllEntities.size();
+            int    entityCount  = finalAllEntities.size();
+            String entityNames  = finalAllEntities.stream()
+                    .map(ClassMeta::getClassName)
+                    .reduce((a, b) -> a + ", " + b)
+                    .orElse(finalMeta.getClassName());
+
             String entityContext = entityCount > 1
-                    ? String.format("🔗 Multi-Entity Mode: %d entities resolved", entityCount)
+                    ? String.format("🔗 Multi-Entity Mode: %d entities resolved (%s)", entityCount, entityNames)
                     : "📦 Single-Entity Mode";
 
             String message = String.format("""
@@ -276,7 +309,7 @@ public class GenerateCrudAction extends AnAction {
                     🌐 Swagger:
                     http://localhost:8080/swagger-ui.html
                     """,
-                    meta.getClassName(),
+                    finalMeta.getClassName(),
                     entityContext,
                     securityMessage,
                     dbWarning,
@@ -294,6 +327,33 @@ public class GenerateCrudAction extends AnAction {
             ex.printStackTrace();
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Executes a single generator step inside a try/catch so that one broken
+     * generator never prevents the rest from running.  Failures are surfaced
+     * in the IDE log (Help → Show Log) rather than swallowed silently.
+     *
+     * @param generatorName human-readable label used in log messages
+     * @param task          the generator lambda to execute
+     */
+    private void runSafe(String generatorName, Runnable task) {
+        try {
+            task.run();
+        } catch (Exception ex) {
+            // Log to the IDE console so developers can diagnose without crashing.
+            System.err.printf(
+                    "⚠️ [CrudGenerator] %s failed: %s%n",
+                    generatorName, ex.getMessage()
+            );
+            ex.printStackTrace();
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     @Override
     public void update(AnActionEvent e) {
@@ -334,9 +394,9 @@ public class GenerateCrudAction extends AnAction {
     }
 
     /**
-     * Checks whether the given PSI class carries a JPA @Entity annotation.
-     * Both jakarta.persistence and javax.persistence are supported for
-     * compatibility with Spring Boot 2.x and 3.x.
+     * Returns true if the PSI class carries a JPA {@code @Entity} annotation.
+     * Both {@code jakarta.persistence} and {@code javax.persistence} are checked
+     * so that Spring Boot 2.x (javax) and 3.x (jakarta) projects are both covered.
      */
     private boolean isEntity(PsiClass psiClass) {
         return psiClass.hasAnnotation("jakarta.persistence.Entity") ||
