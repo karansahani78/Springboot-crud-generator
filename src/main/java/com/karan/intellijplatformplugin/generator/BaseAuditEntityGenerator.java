@@ -170,14 +170,15 @@ public class BaseAuditEntityGenerator {
                      * </pre>
                      */
                     @Override
-                    protected String toString() {
+                    public String toString() {
                         return "audit={"
                                 + "createdAt=" + createdAt
                                 + ", updatedAt=" + updatedAt
-                                + ", createdBy='" + createdBy + '\\''
-                                + ", updatedBy='" + updatedBy + '\\''
+                                + ", createdBy='" + createdBy + '\\\\''
+                                + ", updatedBy='" + updatedBy + '\\\\''
                                 + ", version=" + version
                                 + '}';
+                    }
                     }
                 }
                 """, pkg);
