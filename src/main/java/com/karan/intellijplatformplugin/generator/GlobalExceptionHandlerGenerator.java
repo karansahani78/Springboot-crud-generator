@@ -7,23 +7,34 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.FileExistsUtil;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
-/**
- * Generates Global Exception Handler with @ControllerAdvice.
- */
+import java.util.List;
+
 public class GlobalExceptionHandlerGenerator {
 
-    public static void generate(Project project, PsiDirectory root, ClassMeta meta) {
+    public static void generate(
+            Project project,
+            PsiDirectory root,
+            ClassMeta meta,
+            List<ClassMeta> allEntities
+    ) {
         if (project == null || root == null || meta == null) {
             throw new IllegalArgumentException("Project, root directory, and metadata cannot be null");
         }
 
-        String pkg = meta.basePackage() + ".exception";
-        // ✅ CHECK IF FILE ALREADY EXISTS
-        if (FileExistsUtil.fileExistsInPackage(root, pkg, "GlobalExceptionHandler.java")) {
-            System.out.println("GlobalExceptionHandler.java already exists, skipping generation.");
+        String pkg      = meta.basePackage() + ".exception";
+        String fileName = "GlobalExceptionHandler.java";
+
+        if (FileExistsUtil.fileExistsInPackage(root, pkg, fileName)) {
             return;
         }
+
         PsiDirectory dir = PsiDirectoryUtil.createPackageDirs(root, pkg);
+
+        if (fileExistsInPsiDirectory(dir, fileName)) {
+            return;
+        }
+
+        String basePackage = meta.basePackage();
 
         String code = String.format("""
                 package %s;
@@ -31,170 +42,178 @@ public class GlobalExceptionHandlerGenerator {
                 import %s.dto.ErrorResponse;
                 import org.slf4j.Logger;
                 import org.slf4j.LoggerFactory;
+                import org.springframework.dao.DataIntegrityViolationException;
                 import org.springframework.http.HttpStatus;
                 import org.springframework.http.ResponseEntity;
-                import org.springframework.validation.FieldError;
+                import org.springframework.http.converter.HttpMessageNotReadableException;
+                import org.springframework.web.server.MethodNotAllowedException;
                 import org.springframework.web.bind.MethodArgumentNotValidException;
                 import org.springframework.web.bind.annotation.ExceptionHandler;
                 import org.springframework.web.bind.annotation.RestControllerAdvice;
                 import org.springframework.web.context.request.WebRequest;
                 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+                import org.springframework.web.servlet.NoHandlerFoundException;
                 
+                import java.util.List;
                 import java.util.stream.Collectors;
                 
-                /**
-                 * Global exception handler for consistent error responses across the application.
-                 */
                 @RestControllerAdvice
                 public class GlobalExceptionHandler {
-                    
+                
                     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-                    
-                    /**
-                     * Handles ResourceNotFoundException - 404 NOT FOUND
-                     */
+                
+                    // ── Resource Not Found ─────────────────────────────
                     @ExceptionHandler(ResourceNotFoundException.class)
-                    public ResponseEntity<ErrorResponse> handleResourceNotFoundException(
-                            ResourceNotFoundException ex,
-                            WebRequest request
-                    ) {
-                        log.error("Resource not found: {}", ex.getMessage());
-                        
-                        ErrorResponse errorResponse = new ErrorResponse(
-                                HttpStatus.NOT_FOUND.value(),
-                                "Not Found",
-                                ex.getMessage(),
-                                request.getDescription(false).replace("uri=", "")
-                        );
-                        
-                        return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
+                    public ResponseEntity<ErrorResponse> handleResourceNotFound(
+                            ResourceNotFoundException ex, WebRequest request) {
+                
+                        log.warn("Resource not found: {}", ex.getMessage());
+                        return build(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request);
                     }
-                    
-                    /**
-                     * Handles BadRequestException - 400 BAD REQUEST
-                     */
+                
+                    // ── Bad Request ─────────────────────────────
                     @ExceptionHandler(BadRequestException.class)
-                    public ResponseEntity<ErrorResponse> handleBadRequestException(
-                            BadRequestException ex,
-                            WebRequest request
-                    ) {
-                        log.error("Bad request: {}", ex.getMessage());
-                        
-                        ErrorResponse errorResponse = new ErrorResponse(
-                                HttpStatus.BAD_REQUEST.value(),
-                                "Bad Request",
-                                ex.getMessage(),
-                                request.getDescription(false).replace("uri=", "")
-                        );
-                        
-                        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+                    public ResponseEntity<ErrorResponse> handleBadRequest(
+                            BadRequestException ex, WebRequest request) {
+                
+                        log.warn("Bad request: {}", ex.getMessage());
+                        return build(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request);
                     }
-                    
-                    /**
-                     * Handles DuplicateResourceException - 409 CONFLICT
-                     */
+                
+                    // ── Duplicate ─────────────────────────────
                     @ExceptionHandler(DuplicateResourceException.class)
-                    public ResponseEntity<ErrorResponse> handleDuplicateResourceException(
-                            DuplicateResourceException ex,
-                            WebRequest request
-                    ) {
-                        log.error("Duplicate resource: {}", ex.getMessage());
-                        
-                        ErrorResponse errorResponse = new ErrorResponse(
-                                HttpStatus.CONFLICT.value(),
-                                "Conflict",
-                                ex.getMessage(),
-                                request.getDescription(false).replace("uri=", "")
-                        );
-                        
-                        return new ResponseEntity<>(errorResponse, HttpStatus.CONFLICT);
+                    public ResponseEntity<ErrorResponse> handleDuplicateResource(
+                            DuplicateResourceException ex, WebRequest request) {
+                
+                        log.warn("Duplicate resource: {}", ex.getMessage());
+                        return build(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request);
                     }
-                    
-                    /**
-                     * Handles validation errors - 400 BAD REQUEST
-                     */
+                
+                    // ── Validation ─────────────────────────────
                     @ExceptionHandler(MethodArgumentNotValidException.class)
-                    public ResponseEntity<ErrorResponse> handleValidationException(
-                            MethodArgumentNotValidException ex,
-                            WebRequest request
-                    ) {
-                        log.error("Validation failed: {}", ex.getMessage());
-                        
+                    public ResponseEntity<ErrorResponse> handleValidation(
+                            MethodArgumentNotValidException ex, WebRequest request) {
+                
+                        log.warn("Validation failed");
+                
+                        List<String> fieldErrors = ex.getBindingResult()
+                                .getFieldErrors()
+                                .stream()
+                                .map(e -> e.getField() + ": " + e.getDefaultMessage())
+                                .collect(Collectors.toList());
+                
                         ErrorResponse errorResponse = new ErrorResponse(
                                 HttpStatus.BAD_REQUEST.value(),
                                 "Validation Failed",
-                                "Invalid input data",
-                                request.getDescription(false).replace("uri=", "")
+                                "One or more fields failed validation",
+                                extractPath(request)
                         );
-                        
-                        // Add field-specific validation errors
-                        errorResponse.setDetails(
-                                ex.getBindingResult()
-                                        .getFieldErrors()
-                                        .stream()
-                                        .map(error -> error.getField() + ": " + error.getDefaultMessage())
-                                        .collect(Collectors.toList())
-                        );
-                        
+                        errorResponse.addDetails(fieldErrors);
+                
                         return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
                     }
-                    
-                    /**
-                     * Handles type mismatch errors - 400 BAD REQUEST
-                     */
+                
+                    // ── Type Mismatch ─────────────────────────────
                     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-                    public ResponseEntity<ErrorResponse> handleTypeMismatchException(
-                            MethodArgumentTypeMismatchException ex,
-                            WebRequest request
-                    ) {
-                        log.error("Type mismatch: {}", ex.getMessage());
-                        
+                    public ResponseEntity<ErrorResponse> handleTypeMismatch(
+                            MethodArgumentTypeMismatchException ex, WebRequest request) {
+                
                         String message = String.format(
-                                "Invalid value '%%s' for parameter '%%s'. Expected type: %%s",
+                                "Invalid value '%s' for parameter '%s'. Expected type: %s",
                                 ex.getValue(),
                                 ex.getName(),
                                 ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown"
                         );
-                        
-                        ErrorResponse errorResponse = new ErrorResponse(
-                                HttpStatus.BAD_REQUEST.value(),
-                                "Bad Request",
-                                message,
-                                request.getDescription(false).replace("uri=", "")
-                        );
-                        
-                        return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
+                        return build(HttpStatus.BAD_REQUEST, "Bad Request", message, request);
                     }
-                    
-                    /**
-                     * Handles all other exceptions - 500 INTERNAL SERVER ERROR
-                     */
-                    @ExceptionHandler(Exception.class)
-                    public ResponseEntity<ErrorResponse> handleGlobalException(
-                            Exception ex,
-                            WebRequest request
-                    ) {
-                        log.error("Unexpected error occurred: ", ex);
-                        
-                        ErrorResponse errorResponse = new ErrorResponse(
-                                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                                "Internal Server Error",
-                                "An unexpected error occurred. Please try again later.",
-                                request.getDescription(false).replace("uri=", "")
+                
+                    // ── Malformed JSON ─────────────────────────────
+                    @ExceptionHandler(HttpMessageNotReadableException.class)
+                    public ResponseEntity<ErrorResponse> handleUnreadableMessage(
+                            HttpMessageNotReadableException ex, WebRequest request) {
+                
+                        return build(
+                                HttpStatus.BAD_REQUEST,
+                                "Bad Request",
+                                "Malformed JSON request",
+                                request
                         );
-                        
-                        return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
+                    }
+                
+                    // ── DB Constraint ─────────────────────────────
+                    @ExceptionHandler(DataIntegrityViolationException.class)
+                    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+                            DataIntegrityViolationException ex, WebRequest request) {
+                
+                        return build(HttpStatus.CONFLICT, "Conflict", "Database constraint violated", request);
+                    }
+                
+                    // ── 404 ─────────────────────────────
+                    @ExceptionHandler(NoHandlerFoundException.class)
+                    public ResponseEntity<ErrorResponse> handleNoHandlerFound(
+                            NoHandlerFoundException ex, WebRequest request) {
+                
+                        return build(
+                                HttpStatus.NOT_FOUND,
+                                "Not Found",
+                                "No endpoint found",
+                                request
+                        );
+                    }
+                
+                    // ── 405 (FIXED) ─────────────────────────────
+                    @ExceptionHandler(MethodNotAllowedException.class)
+                    public ResponseEntity<ErrorResponse> handleMethodNotAllowed(
+                            MethodNotAllowedException ex, WebRequest request) {
+                
+                        return build(
+                                HttpStatus.METHOD_NOT_ALLOWED,
+                                "Method Not Allowed",
+                                ex.getMessage(),
+                                request
+                        );
+                    }
+                
+                    // ── 500 ─────────────────────────────
+                    @ExceptionHandler(Exception.class)
+                    public ResponseEntity<ErrorResponse> handleUnexpected(
+                            Exception ex, WebRequest request) {
+                
+                        log.error("Unexpected error", ex);
+                        return build(
+                                HttpStatus.INTERNAL_SERVER_ERROR,
+                                "Internal Server Error",
+                                "Something went wrong",
+                                request
+                        );
+                    }
+                
+                    // ── Helper ─────────────────────────────
+                    private ResponseEntity<ErrorResponse> build(
+                            HttpStatus status, String error, String message, WebRequest request) {
+                
+                        ErrorResponse body = new ErrorResponse(
+                                status.value(), error, message, extractPath(request));
+                        return new ResponseEntity<>(body, status);
+                    }
+                
+                    private String extractPath(WebRequest request) {
+                        return request.getDescription(false).replace("uri=", "");
                     }
                 }
-                """, pkg, meta.basePackage());
+                """, pkg, basePackage);
 
         PsiFile file = PsiFileFactory.getInstance(project)
-                .createFileFromText(
-                        "GlobalExceptionHandler.java",
-                        JavaFileType.INSTANCE,
-                        code
-                );
+                .createFileFromText(fileName, JavaFileType.INSTANCE, code);
 
         dir.add(file);
+    }
+
+    private static boolean fileExistsInPsiDirectory(PsiDirectory dir, String fileName) {
+        if (dir == null || fileName == null) return false;
+        for (PsiFile existing : dir.getFiles()) {
+            if (fileName.equals(existing.getName())) return true;
+        }
+        return false;
     }
 }

@@ -1,6 +1,7 @@
 package com.karan.intellijplatformplugin.action;
 
 import com.intellij.openapi.actionSystem.*;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
@@ -11,13 +12,36 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.util.DependencyManager;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
-import javax.swing.Icon;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
  * Action to generate complete CRUD code with optional security.
+ * Supports multi-entity projects with JPA relationships.
+ *
+ * GENERATOR UPGRADE STATUS
+ * ─────────────────────────────────────────────────────
+ * ✅ ALL generators now use the NEW signature:
+ *      (Project, PsiDirectory, ClassMeta, List<ClassMeta>, ...)
+ *
+ *      DtoGenerator, MapperGenerator, RepositoryGenerator,
+ *      ServiceGenerator, ControllerGenerator,
+ *      ExceptionGenerator, ErrorResponseGenerator,
+ *      GlobalExceptionHandlerGenerator, PaginationGenerator,
+ *      BaseAuditEntityGenerator,
+ *      JwtServiceGenerator, JwtAuthenticationFilterGenerator,
+ *      UserEntityGenerator, RoleEnumGenerator,
+ *      AppUserRepositoryGenerator, UserDetailsServiceImplGenerator,
+ *      AuthenticationServiceGenerator, AuthDtoGenerator,
+ *      ApplicationPropertiesGenerator,
+ *      SwaggerConfigGenerator, SwaggerReadmeGenerator,
+ *      SecurityConfigGenerator, AuthControllerGenerator,
+ *      SecurityReadmeGenerator, JpaAuditingConfigGenerator,
+ *      AuditingReadmeGenerator
+ * ─────────────────────────────────────────────────────
  */
 public class GenerateCrudAction extends AnAction {
 
@@ -79,41 +103,66 @@ public class GenerateCrudAction extends AnAction {
                 Messages.getQuestionIcon()
         );
 
-        if (securityChoice == Messages.CANCEL) {
-            return;
-        }
+        if (securityChoice == Messages.CANCEL) return;
 
         boolean includeSecurity = (securityChoice == Messages.YES);
 
         // ================= DATABASE (OPTIONAL) =================
         String[] dbOptions = {"None", "MySQL", "PostgreSQL", "MongoDB", "H2"};
 
-        // FIX: showChooseDialog signature is:
-        // (Object parentComponent, String message, String title,
-        //  Icon icon, String[] values, String initialValue)
         int dbChoice = Messages.showChooseDialog(
                 project,
                 """
                 Select Database (Optional):
                 
-                • None → Configure later
+                • None  → Configure later
                 • MySQL / PostgreSQL → SQL DB
                 • MongoDB → NoSQL
-                • H2 → In-memory DB
+                • H2    → In-memory DB
                 """,
                 "Select Database",
-                Messages.getQuestionIcon(),   // Icon  ← was missing / wrong type
-                dbOptions,                    // String[] values
-                dbOptions[0]                  // String initialValue
+                Messages.getQuestionIcon(),
+                dbOptions,
+                dbOptions[0]
         );
 
         if (dbChoice == -1) return;
 
-        String selectedDb = dbOptions[dbChoice];
+        String selectedDb    = dbOptions[dbChoice];
         boolean isDbSelected = !Objects.equals(selectedDb, "None");
 
         try {
+            // ================= PRIMARY ENTITY META =================
             ClassMeta meta = PsiDirectoryUtil.toClassMeta(psiClass);
+            if (meta == null) {
+                Messages.showErrorDialog(
+                        project,
+                        "Could not parse the selected class. " +
+                                "Ensure the file compiles without errors and retry.",
+                        "Parse Error"
+                );
+                return;
+            }
+
+            // ================= MULTI-ENTITY CONTEXT =================
+            // ReadAction ensures we hold the PSI read lock when querying the index.
+            List<ClassMeta> scannedEntities = ReadAction.compute(
+                    () -> PsiDirectoryUtil.getAllEntityMetas(project)
+            );
+
+            List<ClassMeta> allEntities = new ArrayList<>(scannedEntities);
+
+            // Guarantee the primary entity is always in the list even if the
+            // PSI index hasn't flushed the current unsaved file yet.
+            boolean primaryPresent = allEntities.stream()
+                    .anyMatch(m -> m.getClassName().equals(meta.getClassName()));
+            if (!primaryPresent) {
+                allEntities.add(0, meta);
+            }
+
+            if (allEntities.isEmpty()) {
+                allEntities = new ArrayList<>(List.of(meta));
+            }
 
             PsiDirectory sourceRoot = PsiDirectoryUtil.getSourceRoot(file);
             if (sourceRoot == null) {
@@ -126,8 +175,6 @@ public class GenerateCrudAction extends AnAction {
 
             // ================= BUILD TOOL DETECTION =================
             String reloadMessage = "Reload your project";
-            boolean isGradle = false;
-            boolean isMaven = false;
 
             try {
                 String basePath = project.getBasePath();
@@ -136,11 +183,9 @@ public class GenerateCrudAction extends AnAction {
                     Path mavenFile  = Path.of(basePath, "pom.xml");
 
                     if (Files.exists(gradleFile)) {
-                        reloadMessage = "Reload Gradle project";
-                        isGradle = true;
+                        reloadMessage = "Reload Gradle project (Ctrl+Shift+O)";
                     } else if (Files.exists(mavenFile)) {
-                        reloadMessage = "Reload Maven project";
-                        isMaven = true;
+                        reloadMessage = "Reload Maven project (Ctrl+Shift+M)";
                     }
                 }
             } catch (Exception ignored) {}
@@ -149,59 +194,145 @@ public class GenerateCrudAction extends AnAction {
             try {
                 DependencyManager.injectDependencies(project, includeSecurity, selectedDb);
             } catch (Exception depEx) {
-                System.out.println("⚠️ Dependency injection failed: " + depEx.getMessage());
+                System.err.println("⚠️ Dependency injection failed: " + depEx.getMessage());
             }
 
-            // ================= GENERATION =================
-            WriteCommandAction.runWriteCommandAction(project, () -> {
-                SwaggerConfigGenerator.generate(project, sourceRoot, meta, includeSecurity);
-                SwaggerReadmeGenerator.generate(project, sourceRoot, meta);
-                ApplicationPropertiesGenerator.generate(project, sourceRoot, meta, includeSecurity);
+            // Final captures for use inside the lambda.
+            final ClassMeta       finalMeta        = meta;
+            final List<ClassMeta> finalAllEntities = allEntities;
+            final boolean         finalSecurity    = includeSecurity;
 
-                if (includeSecurity) {
-                    SecurityConfigGenerator.generate(project, sourceRoot, meta);
-                    JwtServiceGenerator.generate(project, sourceRoot, meta);
-                    JwtAuthenticationFilterGenerator.generate(project, sourceRoot, meta);
-                    UserEntityGenerator.generate(project, sourceRoot, meta);
-                    RoleEnumGenerator.generate(project, sourceRoot, meta);
-                    AppUserRepositoryGenerator.generate(project, sourceRoot, meta);
-                    UserDetailsServiceImplGenerator.generate(project, sourceRoot, meta);
-                    AuthenticationServiceGenerator.generate(project, sourceRoot, meta);
-                    AuthControllerGenerator.generate(project, sourceRoot, meta);
-                    AuthDtoGenerator.generate(project, sourceRoot, meta);
-                    SecurityReadmeGenerator.generate(project, sourceRoot, meta);
+            // =========================================================
+            // GENERATION
+            // Each call is wrapped in runSafe() so that one broken
+            // generator never aborts all subsequent generators.
+            //
+            // All generators now use the NEW unified signature:
+            //   generate(project, sourceRoot, finalMeta, finalAllEntities, ...)
+            // =========================================================
+            WriteCommandAction.runWriteCommandAction(project, () -> {
+
+                // --- Infrastructure / Config ---
+                // ✅ NEW signature — allEntities passed
+                runSafe("SwaggerConfig",  () -> SwaggerConfigGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities, finalSecurity));
+
+                // ✅ NEW signature — allEntities passed
+                runSafe("SwaggerReadme",  () -> SwaggerReadmeGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities));
+
+                // ✅ NEW signature
+                runSafe("AppProperties",  () -> ApplicationPropertiesGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities, finalSecurity));
+
+                // --- Security (optional) ---
+                if (finalSecurity) {
+                    // ✅ NEW signature — allEntities passed
+                    runSafe("SecurityConfig",         () -> SecurityConfigGenerator.generate(
+                            project, sourceRoot, finalMeta, finalAllEntities));
+
+                    // ✅ NEW signature
+                    runSafe("JwtService",             () -> JwtServiceGenerator.generate(
+                            project, sourceRoot, finalMeta, finalAllEntities));
+
+                    // ✅ NEW signature
+                    runSafe("JwtAuthFilter",          () -> JwtAuthenticationFilterGenerator.generate(
+                            project, sourceRoot, finalMeta, finalAllEntities));
+
+                    // ✅ NEW signature
+                    runSafe("UserEntity",             () -> UserEntityGenerator.generate(
+                            project, sourceRoot, finalMeta, finalAllEntities));
+
+                    // ✅ NEW signature
+                    runSafe("RoleEnum",               () -> RoleEnumGenerator.generate(
+                            project, sourceRoot, finalMeta, finalAllEntities));
+
+                    // ✅ NEW signature
+                    runSafe("AppUserRepository",      () -> AppUserRepositoryGenerator.generate(
+                            project, sourceRoot, finalMeta, finalAllEntities));
+
+                    // ✅ NEW signature
+                    runSafe("UserDetailsServiceImpl", () -> UserDetailsServiceImplGenerator.generate(
+                            project, sourceRoot, finalMeta, finalAllEntities));
+
+                    // ✅ NEW signature
+                    runSafe("AuthenticationService",  () -> AuthenticationServiceGenerator.generate(
+                            project, sourceRoot, finalMeta, finalAllEntities));
+
+                    // ✅ NEW signature — allEntities passed
+                    runSafe("AuthController",         () -> AuthControllerGenerator.generate(
+                            project, sourceRoot, finalMeta, finalAllEntities));
+
+                    // ✅ NEW signature
+                    runSafe("AuthDto",                () -> AuthDtoGenerator.generate(
+                            project, sourceRoot, finalMeta, finalAllEntities));
+
+                    // ✅ NEW signature — allEntities passed
+                    runSafe("SecurityReadme",         () -> SecurityReadmeGenerator.generate(
+                            project, sourceRoot, finalMeta, finalAllEntities));
                 }
 
-                BaseAuditEntityGenerator.generate(project, sourceRoot, meta);
-                JpaAuditingConfigGenerator.generate(project, sourceRoot, meta, includeSecurity);
-                AuditingReadmeGenerator.generate(project, sourceRoot, meta);
+                // --- Auditing ---
+                // ✅ NEW signature
+                runSafe("BaseAuditEntity",   () -> BaseAuditEntityGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities));
 
-                PaginationGenerator.generate(project, sourceRoot, meta);
+                // ✅ NEW signature — allEntities inserted before finalSecurity
+                runSafe("JpaAuditingConfig", () -> JpaAuditingConfigGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities, finalSecurity));
 
-                ExceptionGenerator.generate(project, sourceRoot, meta);
-                ErrorResponseGenerator.generate(project, sourceRoot, meta);
-                GlobalExceptionHandlerGenerator.generate(project, sourceRoot, meta);
+                // ✅ NEW signature — allEntities passed
+                runSafe("AuditingReadme",    () -> AuditingReadmeGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities));
 
-                DtoGenerator.generate(project, sourceRoot, meta);
-                MapperGenerator.generate(project, sourceRoot, meta);
-                RepositoryGenerator.generate(project, sourceRoot, meta);
-                ServiceGenerator.generate(project, sourceRoot, meta);
-                ControllerGenerator.generate(project, sourceRoot, meta);
+                // --- Pagination ---
+                // ✅ NEW signature
+                runSafe("Pagination",        () -> PaginationGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities));
+
+                // --- Exception Handling ---
+                // ✅ NEW signature
+                runSafe("Exception",         () -> ExceptionGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities));
+
+                // ✅ NEW signature
+                runSafe("ErrorResponse",     () -> ErrorResponseGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities));
+
+                // ✅ NEW signature
+                runSafe("GlobalExHandler",   () -> GlobalExceptionHandlerGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities));
+
+                // --- Core CRUD Layers (all ✅ NEW signature) ---
+                // DtoGenerator      → emits Long xxxId fields instead of entity refs
+                // MapperGenerator   → skips relationship fields entirely
+                // ServiceGenerator  → fetches related entities via their repositories
+                // ControllerGenerator → standard CRUD wiring
+                runSafe("Dto",        () -> DtoGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities));
+
+                runSafe("Mapper",     () -> MapperGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities));
+
+                runSafe("Repository", () -> RepositoryGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities));
+
+                runSafe("Service",    () -> ServiceGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities));
+
+                runSafe("Controller", () -> ControllerGenerator.generate(
+                        project, sourceRoot, finalMeta, finalAllEntities));
             });
 
-            // ================= SMART DB WARNING =================
+            // ================= SUCCESS DIALOG =================
             String dbWarning;
-
             if (!isDbSelected) {
                 dbWarning = """
-                        
                         ⚠️ DATABASE NOT CONFIGURED
-                        
                         Configure DB manually later (MySQL / PostgreSQL / H2)
                         """;
             } else if (selectedDb.equals("MongoDB")) {
                 dbWarning = """
-                        
                         🍃 MongoDB Selected
                         ✔ Mongo dependency added
                         ⚠ JPA will not be used
@@ -210,33 +341,45 @@ public class GenerateCrudAction extends AnAction {
                 dbWarning = "🛢️ " + selectedDb + " driver added successfully";
             }
 
-            String securityMessage = includeSecurity ? """
-                    
+            String securityMessage = finalSecurity ? """
                     🔒 Security Components:
                     ✓ JWT Authentication
                     ✓ Auth Controller
                     ✓ Security Config
                     """ : "";
 
+            int    entityCount = finalAllEntities.size();
+            String entityNames = finalAllEntities.stream()
+                    .map(ClassMeta::getClassName)
+                    .reduce((a, b) -> a + ", " + b)
+                    .orElse(finalMeta.getClassName());
+
+            String entityContext = entityCount > 1
+                    ? String.format("🔗 Multi-Entity Mode: %d entities resolved (%s)",
+                    entityCount, entityNames)
+                    : "📦 Single-Entity Mode";
+
             String message = String.format("""
                     ✅ Successfully generated CRUD for %s
+                    
+                    %s
                     
                     ✓ Swagger + OpenAPI
                     ✓ JPA / Mongo
                     ✓ Pagination
                     ✓ Exception Handling
                     ✓ Full CRUD Layers
+                    ✓ Relationship-Aware DTOs
+                    ✓ Auto Repository Injection
+                    %s
                     %s
                     
-                    %s
+                    ⚠️ IMPORTANT: %s
                     
-                    ⚠️ IMPORTANT:
-                    %s
-                    
-                    🌐 Swagger:
-                    http://localhost:8080/swagger-ui.html
+                    🌐 Swagger: http://localhost:8080/swagger-ui.html
                     """,
-                    meta.getClassName(),
+                    finalMeta.getClassName(),
+                    entityContext,
                     securityMessage,
                     dbWarning,
                     reloadMessage
@@ -250,6 +393,24 @@ public class GenerateCrudAction extends AnAction {
                     "Failed to generate CRUD code: " + ex.getMessage(),
                     "Generation Error"
             );
+            ex.printStackTrace();
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Executes a generator step, catching any exception so one broken
+     * generator never prevents the rest from running.
+     * Failures are written to stderr and visible in Help → Show Log.
+     */
+    private void runSafe(String name, Runnable task) {
+        try {
+            task.run();
+        } catch (Exception ex) {
+            System.err.printf("⚠️ [CrudGenerator] %s failed: %s%n", name, ex.getMessage());
             ex.printStackTrace();
         }
     }
@@ -292,6 +453,10 @@ public class GenerateCrudAction extends AnAction {
         presentation.setEnabledAndVisible(enabled);
     }
 
+    /**
+     * Checks for JPA {@code @Entity} on the class.
+     * Covers both jakarta (Boot 3.x) and javax (Boot 2.x) namespaces.
+     */
     private boolean isEntity(PsiClass psiClass) {
         return psiClass.hasAnnotation("jakarta.persistence.Entity") ||
                 psiClass.hasAnnotation("javax.persistence.Entity");

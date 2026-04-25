@@ -6,12 +6,23 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiFileFactory;
 import com.karan.intellijplatformplugin.model.ClassMeta;
 
+import java.util.List;
+
 /**
  * Generates README with JPA Auditing setup instructions.
+ *
+ * <p>Multi-entity change: accepts {@code List<ClassMeta> allEntities} to match
+ * the standard generator contract. The content itself is project-wide and does
+ * not vary per-entity, so the list is intentionally unused here.
  */
 public class AuditingReadmeGenerator {
 
-    public static void generate(Project project, PsiDirectory root, ClassMeta meta) {
+    public static void generate(
+            Project project,
+            PsiDirectory root,
+            ClassMeta meta,
+            List<ClassMeta> allEntities   // ← standard contract; unused in content
+    ) {
         if (project == null || root == null || meta == null) {
             return;
         }
@@ -143,9 +154,7 @@ public class AuditingReadmeGenerator {
                 Add custom query to your repository:
 ```java
                 public interface UserRepository extends JpaRepository<User, Long> {
-                    
                     List<User> findByCreatedBy(String createdBy);
-                    
                     List<User> findByUpdatedBy(String updatedBy);
                 }
 ```
@@ -153,12 +162,7 @@ public class AuditingReadmeGenerator {
                 ### Find entities created within a date range
 ```java
                 public interface UserRepository extends JpaRepository<User, Long> {
-                    
-                    List<User> findByCreatedAtBetween(
-                        LocalDateTime start, 
-                        LocalDateTime end
-                    );
-                    
+                    List<User> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end);
                     List<User> findByUpdatedAtAfter(LocalDateTime date);
                 }
 ```
@@ -178,22 +182,9 @@ public class AuditingReadmeGenerator {
                 }
 ```
                 
-                ## Excluding Audit Fields from DTOs
-                
-                If you don't want to expose audit info in your DTOs, simply don't include them:
-```java
-                public class UserDto {
-                    private String name;
-                    private String email;
-                    // No audit fields
-                }
-```
-                
                 ## Best Practices
                 
                 ### 1. Always Extend BaseAuditEntity
-                
-                For new entities that need auditing:
 ```java
                 @Entity
                 public class Product extends BaseAuditEntity {
@@ -202,42 +193,20 @@ public class AuditingReadmeGenerator {
 ```
                 
                 ### 2. Don't Modify Audit Fields Manually
-                
-                Let Spring Data JPA handle them automatically. Never do:
 ```java
                 // ❌ DON'T DO THIS
                 user.setCreatedAt(LocalDateTime.now());
                 user.setCreatedBy("someone");
 ```
                 
-                ### 3. Use Audit Info for Tracking Changes
-                
-                Great for compliance and debugging:
-```java
-                @GetMapping("/audit/{id}")
-                public AuditInfo getAuditInfo(@PathVariable Long id) {
-                    User user = userRepository.findById(id).orElseThrow();
-                    return new AuditInfo(
-                        user.getCreatedAt(),
-                        user.getCreatedBy(),
-                        user.getUpdatedAt(),
-                        user.getUpdatedBy()
-                    );
-                }
-```
-                
-                ### 4. Add Indexes for Performance
-                
-                If you frequently query by audit fields:
+                ### 3. Add Indexes for Performance
 ```java
                 @Entity
                 @Table(name = "users", indexes = {
                     @Index(name = "idx_created_at", columnList = "created_at"),
                     @Index(name = "idx_created_by", columnList = "created_by")
                 })
-                public class User extends BaseAuditEntity {
-                    // ...
-                }
+                public class User extends BaseAuditEntity { ... }
 ```
                 
                 ## Troubleshooting
@@ -248,9 +217,7 @@ public class AuditingReadmeGenerator {
 ```java
                 @Configuration
                 @EnableJpaAuditing(auditorAwareRef = "auditorProvider")
-                public class JpaAuditingConfig {
-                    // ...
-                }
+                public class JpaAuditingConfig { ... }
 ```
                 
                 ### Issue: createdBy/updatedBy always "system"
@@ -259,7 +226,7 @@ public class AuditingReadmeGenerator {
                 
                 ### Issue: Existing entities don't have audit fields
                 
-                **Solution**: 
+                **Solution**:
                 1. Make your entity extend `BaseAuditEntity`
                 2. Run database migration to add columns
                 3. Or use Hibernate's `ddl-auto=update` (development only)

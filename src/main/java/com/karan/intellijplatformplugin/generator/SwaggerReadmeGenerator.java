@@ -6,12 +6,14 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiFileFactory;
 import com.karan.intellijplatformplugin.model.ClassMeta;
 
+import java.util.List;
+
 /**
  * Generates README with Springdoc OpenAPI setup instructions.
  */
 public class SwaggerReadmeGenerator {
 
-    public static void generate(Project project, PsiDirectory root, ClassMeta meta) {
+    public static void generate(Project project, PsiDirectory root, ClassMeta meta, List<ClassMeta> finalAllEntities) {
         if (project == null || root == null || meta == null) {
             return;
         }
