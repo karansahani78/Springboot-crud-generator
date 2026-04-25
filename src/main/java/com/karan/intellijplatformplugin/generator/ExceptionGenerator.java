@@ -78,14 +78,12 @@ public class ExceptionGenerator {
                  * <p>Maps to HTTP {@code 404 Not Found}.
                  *
                  * <p>In multi-entity systems this is also thrown by service methods when
-                 * a related entity referenced by ID in the DTO does not exist — for example,
-                 * when creating an {@code Employee} with a {@code departmentId} that has
-                 * no matching {@code Department} record.
+                 * a related entity referenced by ID in the DTO does not exist.
                  *
                  * <p>Usage:
                  * <pre>
-                 *   departmentRepository.findById(dto.getDepartmentId())
-                 *       .orElseThrow(() -> new ResourceNotFoundException("Department", "id", dto.getDepartmentId()));
+                 *   repository.findById(id)
+                 *       .orElseThrow(() -> new ResourceNotFoundException(entityName, "id", id));
                  * </pre>
                  */
                 @ResponseStatus(HttpStatus.NOT_FOUND)
@@ -98,12 +96,12 @@ public class ExceptionGenerator {
                     /**
                      * Full constructor — generates a descriptive message automatically.
                      *
-                     * @param resourceName simple entity name, e.g. {@code "Department"}
+                     * @param resourceName simple entity name, e.g. {@code "User"}
                      * @param fieldName    name of the lookup field, e.g. {@code "id"}
                      * @param fieldValue   value that was not found, e.g. {@code 42L}
                      */
                     public ResourceNotFoundException(String resourceName, String fieldName, Object fieldValue) {
-                        super(String.format("%%s not found with %%s: '%%s'", resourceName, fieldName, fieldValue));
+                        super(String.format("%%s not found with %%s : '%%s'", resourceName, fieldName, fieldValue));
                         this.resourceName = resourceName;
                         this.fieldName    = fieldName;
                         this.fieldValue   = fieldValue;
@@ -244,7 +242,7 @@ public class ExceptionGenerator {
                      * @param fieldValue   the duplicate value, e.g. {@code "admin@example.com"}
                      */
                     public DuplicateResourceException(String resourceName, String fieldName, Object fieldValue) {
-                        super(String.format("%%s already exists with %%s: '%%s'", resourceName, fieldName, fieldValue));
+                        super(String.format("%%s already exists with %%s : '%%s'", resourceName, fieldName, fieldValue));
                         this.resourceName = resourceName;
                         this.fieldName    = fieldName;
                         this.fieldValue   = fieldValue;

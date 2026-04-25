@@ -48,6 +48,9 @@ public class ErrorResponseGenerator {
             return;
         }
 
+        // FIX: use actual entity class name so @Schema example is not hardcoded to "Department"
+        String entityName = meta.getClassName();
+
         String code = String.format("""
                 package %s;
                 
@@ -81,11 +84,11 @@ public class ErrorResponseGenerator {
                     private String error;
                 
                     @Schema(description = "Human-readable error message",
-                            example = "Department not found with id: '42'")
+                            example = "%s not found with id : '42'")
                     private String message;
                 
                     @Schema(description = "Request path where the error occurred",
-                            example = "/api/employees/7")
+                            example = "/api/%ss/7")
                     private String path;
                 
                     @Schema(description = "Field-level validation errors or additional context")
@@ -160,7 +163,7 @@ public class ErrorResponseGenerator {
                                 + '}';
                     }
                 }
-                """, pkg);
+                """, pkg, entityName, entityName.toLowerCase());
 
         PsiFile file = PsiFileFactory.getInstance(project)
                 .createFileFromText(fileName, JavaFileType.INSTANCE, code);
