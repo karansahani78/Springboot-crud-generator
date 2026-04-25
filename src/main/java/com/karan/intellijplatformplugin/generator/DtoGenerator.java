@@ -13,16 +13,21 @@ import java.util.List;
 /**
  * Generates a DTO class for a JPA entity.
  *
- * <p>Scalar fields are emitted as-is (minus the @Id field).
- * Relationship fields are emitted as ID references:
+ * <p>Scalar fields are emitted as-is, INCLUDING the {@code id} field.
+ * The {@code id} field carries no {@code @NotNull} annotation and is marked
+ * {@code NOT_REQUIRED} in the OpenAPI schema — it is populated on GET responses
+ * but must be absent / ignored on POST (create) payloads.
+ *
+ * <p>Relationship fields are emitted as ID references:
  * <ul>
- *   <li>@ManyToOne / @OneToOne  → {@code private Long fieldNameId;}</li>
- *   <li>@OneToMany / @ManyToMany → {@code private List<Long> fieldNameIds;}</li>
+ *   <li>{@code @ManyToOne} / {@code @OneToOne}  → {@code private Long fieldNameId;}</li>
+ *   <li>{@code @OneToMany} / {@code @ManyToMany} → {@code private List<Long> fieldNameIds;}</li>
  * </ul>
- * ALL relationship sides are included (including inverse @OneToMany with mappedBy)
- * so the generated Mapper never calls a setter that doesn't exist in the DTO.
- * Inverse collection fields are marked NOT_REQUIRED and carry no @NotNull —
- * they are populated on GET responses but ignored by the service on POST/PUT.
+ * ALL relationship sides are included (including inverse {@code @OneToMany} with
+ * {@code mappedBy}) so the generated Mapper never calls a setter that doesn't
+ * exist in the DTO.  Inverse collection fields are marked NOT_REQUIRED and carry
+ * no {@code @NotNull} — they are populated on GET responses but ignored by the
+ * service on POST/PUT.
  */
 public class DtoGenerator {
 
@@ -50,20 +55,35 @@ public class DtoGenerator {
         StringBuilder toStringParts  = new StringBuilder();
         int fieldCount = 0;
 
-        // ── 1. Scalar fields (skip @Id — not part of create/update body) ──
+        // ── 1. Scalar fields — INCLUDING @Id ──────────────────────────────────
+        // FIX: The previous version skipped the id field entirely with:
+        //      if (f.getName().equalsIgnoreCase("id")) continue;
+        //
+        // That caused the API to return objects with no id, making every
+        // response useless for subsequent GET/PUT/DELETE calls.
+        //
+        // The id field IS included but is treated as readOnly=true so that:
+        //   • @NotNull is NOT added (id is server-assigned, not a client input)
+        //   • requiredMode = NOT_REQUIRED in the OpenAPI schema
+        //   • Mapper writes dto.setId(entity.getId()) in toDto()
+        //   • toEntity() and updateEntity() may also use it for upsert flows
         for (FieldMeta f : meta.getFields()) {
-            if (f.getName().equalsIgnoreCase("id")) continue;
-
             String fieldName       = f.getName();
             String fieldType       = f.getType();
             String capitalizedName = f.getCapitalizedName();
 
-            appendField(fields,
+            // id is server-assigned — no @NotNull, NOT_REQUIRED in schema.
+            boolean isId = fieldName.equalsIgnoreCase("id");
+
+            appendField(
+                    fields,
                     capitalizedName,
                     meta.getClassName().toLowerCase(),
                     fieldName,
                     fieldType,
-                    false);
+                    isId   // readOnly=true  →  no @NotNull, NOT_REQUIRED
+            );
+
             appendGetter(gettersSetters, fieldType, capitalizedName, fieldName);
             appendSetter(gettersSetters, capitalizedName, fieldType, fieldName);
 
@@ -72,7 +92,7 @@ public class DtoGenerator {
                     .append(fieldName).append(" + \"'\"");
         }
 
-        // ── 2. Relationship fields — ALL sides so Mapper always compiles ──
+        // ── 2. Relationship fields — ALL sides so Mapper always compiles ──────
         for (RelationshipMeta rel : allRels) {
 
             // Inverse side = collection with mappedBy set.
@@ -127,6 +147,9 @@ public class DtoGenerator {
                 /**
                  * DTO for %s entity.
                  *
+                 * <p>The {@code id} field is included for GET responses and optional on
+                 * POST/PUT payloads — it is server-assigned and carries no {@code @NotNull}.
+                 *
                  * <p>Relationship fields are represented as IDs to avoid circular
                  * references and keep the API contract simple.
                  * Fields marked "read-only" are populated on GET responses but
@@ -160,7 +183,7 @@ public class DtoGenerator {
         dir.add(file);
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────
+    // ── Private helpers ───────────────────────────────────────────────────────
 
     /**
      * Appends a single annotated field declaration.
@@ -170,8 +193,9 @@ public class DtoGenerator {
      * @param schemaDescription human-readable description suffix for @Schema
      * @param fieldName        camelCase Java field name
      * @param fieldType        Java type (e.g. "String", "Long", "List<Long>")
-     * @param readOnly         true for inverse collection fields — omits @NotNull,
-     *                         sets requiredMode = NOT_REQUIRED
+     * @param readOnly         true for the {@code id} field and inverse collection fields —
+     *                         omits {@code @NotNull} and sets
+     *                         {@code requiredMode = NOT_REQUIRED}
      */
     private static void appendField(
             StringBuilder sb,
@@ -181,6 +205,8 @@ public class DtoGenerator {
             String fieldType,
             boolean readOnly
     ) {
+        // FIX: readOnly=true  → omit @NotNull entirely, mark NOT_REQUIRED.
+        //      This covers both the id field and inverse collection fields.
         String notNullLine = readOnly
                 ? ""
                 : String.format("    @NotNull(message = \"%s cannot be null\")\n", capitalizedName);
