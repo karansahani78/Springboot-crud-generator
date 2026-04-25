@@ -1,7 +1,7 @@
 # 🚀 Spring Boot CRUD Generator (IntelliJ IDEA Plugin) — v1.0.6
 [![Product Hunt](https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=29476)](https://www.producthunt.com/products/jetbrains)
 
-# 📈Trusted by 1000+ developers to generate production-ready Spring Boot CRUD backends.
+# 📈Trusted by 1200+ developers to generate production-ready Spring Boot CRUD backends.
 
 **Spring Boot CRUD Generator** is a production-grade **IntelliJ IDEA plugin** that generates a complete **Spring Boot backend architecture** from a single JPA entity — directly inside the IDE.
 
@@ -12,6 +12,50 @@ It eliminates repetitive boilerplate and helps backend developers follow **clean
 
 🎥 **Preview Video (YouTube)**
 👉 [https://youtu.be/3Ifcibynsc0](https://youtu.be/3Ifcibynsc0)
+
+---
+## ✨ What’s New in v1.1.0
+
+### 🔥 Major Fix — Real JPA Relationship Support
+
+This release focuses on **stability and correctness in real-world projects**.
+
+#### ✅ Fixed Critical Issues
+
+* ❌ **LazyInitializationException**
+  * Mapper no longer accesses lazy collections (`entity.getXxx()`)
+  * Collections are safely handled without triggering DB calls
+
+* ❌ **Null IDs in API responses**
+  * DTOs now always include `id`
+  * `toDto()` maps `dto.setId(entity.getId())` correctly
+
+* ❌ **Broken mapper (missing DTO fields)**
+  * DTO generator now includes **ALL relationship sides**
+  * No more compile-time errors for bidirectional mappings
+
+---
+
+### 🧠 Improved Mapping Strategy
+
+* **Collections → `null`**
+  * Means *not loaded*
+  * Prevents LazyInitializationException
+
+* **Single relationships → ID only**
+  * Clean API design
+  * No nested objects / recursion
+
+* **Mapper never triggers unintended DB access**
+
+---
+
+### ⚙️ Other Improvements
+
+* ✔ Fixed import issues (`entity.entity.User` bug removed)
+* ✔ Stable multi-entity relationship handling
+* ✔ Production-safe DTO + Mapper generation
+* ✔ Better alignment between DTO and Mapper layers
 
 ---
 
