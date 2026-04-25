@@ -174,11 +174,10 @@ public class BaseAuditEntityGenerator {
                         return "audit={"
                                 + "createdAt=" + createdAt
                                 + ", updatedAt=" + updatedAt
-                                + ", createdBy='" + createdBy + '\\\\''
-                                + ", updatedBy='" + updatedBy + '\\\\''
+                                + ", createdBy='" + createdBy + '\\''
+                                + ", updatedBy='" + updatedBy + '\\''
                                 + ", version=" + version
                                 + '}';
-                    }
                     }
                 }
                 """, pkg);

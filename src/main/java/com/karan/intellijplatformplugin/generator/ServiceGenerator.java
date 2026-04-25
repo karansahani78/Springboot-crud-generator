@@ -7,7 +7,9 @@ import com.karan.intellijplatformplugin.model.ClassMeta;
 import com.karan.intellijplatformplugin.model.RelationshipMeta;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
+import java.util.LinkedHashSet; // FIX 2: using Set instead of StringBuilder for imports
 import java.util.List;
+import java.util.Set;           // FIX 2: using Set instead of StringBuilder for imports
 
 /**
  * Generates the Service layer with full relationship-aware CRUD logic.
@@ -50,7 +52,7 @@ public class ServiceGenerator {
         List<RelationshipMeta> dtoRels = meta.getDtoRelationships();
 
         // ── Imports ───────────────────────────────────────────────────────
-        StringBuilder imports = buildImports(basePackage, className, dtoRels, allEntities);
+        String imports = buildImports(basePackage, className, dtoRels, allEntities);
 
         // ── Constructor injection ──────────────────────────────────────────
         StringBuilder fieldDeclarations  = new StringBuilder();
@@ -103,23 +105,29 @@ public class ServiceGenerator {
 
     // =========================================================================
     // Import builder
+    // FIX 2: Changed from StringBuilder to LinkedHashSet<String> so that
+    //         identical import lines are naturally deduplicated while insertion
+    //         order (and therefore readability) is preserved.
     // =========================================================================
 
-    private static StringBuilder buildImports(
+    private static String buildImports(
             String basePackage,
             String className,
             List<RelationshipMeta> dtoRels,
             List<ClassMeta> allEntities
     ) {
-        StringBuilder sb = new StringBuilder();
+        // FIX 2: Use LinkedHashSet to prevent duplicate import lines.
+        // Previously this was a StringBuilder where the same line could be
+        // appended multiple times when two relationships share a type.
+        Set<String> importSet = new LinkedHashSet<>();
 
         // Core imports
-        sb.append(String.format("import %s.entity.%s;\n",          basePackage, className));
-        sb.append(String.format("import %s.dto.%sDto;\n",           basePackage, className));
-        sb.append(String.format("import %s.mapper.%sMapper;\n",     basePackage, className));
-        sb.append(String.format("import %s.repository.%sRepository;\n", basePackage, className));
-        sb.append(String.format("import %s.exception.ResourceNotFoundException;\n", basePackage));
-        sb.append(String.format("import %s.exception.BadRequestException;\n",       basePackage));
+        importSet.add(String.format("import %s.entity.%s;",          basePackage, className));
+        importSet.add(String.format("import %s.dto.%sDto;",           basePackage, className));
+        importSet.add(String.format("import %s.mapper.%sMapper;",     basePackage, className));
+        importSet.add(String.format("import %s.repository.%sRepository;", basePackage, className));
+        importSet.add(String.format("import %s.exception.ResourceNotFoundException;", basePackage));
+        importSet.add(String.format("import %s.exception.BadRequestException;",       basePackage));
 
         // Per-relationship imports
         for (RelationshipMeta rel : dtoRels) {
@@ -133,30 +141,64 @@ public class ServiceGenerator {
                     .findFirst()
                     .orElse(basePackage + ".entity");
 
-            sb.append(String.format("import %s.%s;\n",              relPackage, relEntity));
-            sb.append(String.format("import %s.repository.%sRepository;\n",
+            importSet.add(String.format("import %s.%s;",              relPackage, relEntity));
+            importSet.add(String.format("import %s.repository.%sRepository;",
                     basePackage, relEntity));
 
             if (rel.isCollection()) {
-                sb.append("import java.util.List;\n");
-                sb.append("import java.util.stream.Collectors;\n");
+                // FIX 2: These were previously appended unconditionally into a
+                // StringBuilder, causing duplicates when multiple collection
+                // relations exist. The Set silently ignores re-insertions.
+                importSet.add("import java.util.Collections;");
+                importSet.add("import java.util.List;");
+                importSet.add("import java.util.stream.Collectors;");
             }
         }
 
-        // Standard Spring / utility imports
-        sb.append("""
-                import org.slf4j.Logger;
-                import org.slf4j.LoggerFactory;
-                import org.springframework.data.domain.Page;
-                import org.springframework.data.domain.PageRequest;
-                import org.springframework.data.domain.Pageable;
-                import org.springframework.data.domain.Sort;
-                import org.springframework.stereotype.Service;
-                import org.springframework.transaction.annotation.Transactional;
-                import java.util.List;
-                """);
+        // Standard Spring / utility imports — added as individual entries so the
+        // Set can deduplicate them if they were somehow added earlier too.
+        importSet.add("import org.slf4j.Logger;");
+        importSet.add("import org.slf4j.LoggerFactory;");
+        importSet.add("import org.springframework.data.domain.Page;");
+        importSet.add("import org.springframework.data.domain.PageRequest;");
+        importSet.add("import org.springframework.data.domain.Pageable;");
+        importSet.add("import org.springframework.data.domain.Sort;");
+        importSet.add("import org.springframework.stereotype.Service;");
+        importSet.add("import org.springframework.transaction.annotation.Transactional;");
+        importSet.add("import java.util.List;");
 
-        return sb;
+        // Join all unique import lines into a single block
+        return String.join("\n", importSet);
+    }
+
+    // =========================================================================
+    // Lambda variable helper — avoids conflicts with in-scope method parameters
+    // =========================================================================
+
+    /**
+     * Returns a lambda variable name that does not clash with any of the
+     * {@code reserved} names already in scope.
+     *
+     * <p>Starts from {@code baseName}; if that is reserved, appends an
+     * incrementing counter suffix until a free name is found.
+     *
+     * <p>Example: {@code resolveSafeLambdaVarName("id", "id", "post")}
+     * returns {@code "id1"} because {@code "id"} is reserved.
+     */
+    private static String resolveSafeLambdaVarName(String baseName, String... reserved) {
+        String candidate = baseName;
+        int counter = 1;
+
+        outer:
+        while (true) {
+            for (String r : reserved) {
+                if (r.equals(candidate)) {
+                    candidate = baseName + counter++;
+                    continue outer;
+                }
+            }
+            return candidate;
+        }
     }
 
     // =========================================================================
@@ -167,14 +209,23 @@ public class ServiceGenerator {
      * Builds the block that appears at the TOP of create() and update(),
      * resolving each related entity from its repository before the mapper runs.
      *
-     * <p>Example output:
+     * <p>Example output for a collection relation (FIX 1 applied):
      * <pre>
+     *   List&lt;Tag&gt; tagsList = dto.getTagIds() != null
+     *           ? dto.getTagIds().stream()
+     *                   .map(id -&gt; tagRepository.findById(id)
+     *                           .orElseThrow(() -&gt; new ResourceNotFoundException("Tag", "id", id)))
+     *                   .collect(Collectors.toList())
+     *           : java.util.Collections.emptyList();
+     * </pre>
+     *
+     * <p>Example output for a scalar relation (FIX 3 applied):
+     * <pre>
+     *   if (dto.getDepartmentId() == null) {
+     *       throw new BadRequestException("DepartmentId cannot be null");
+     *   }
      *   Department department = departmentRepository.findById(dto.getDepartmentId())
-     *       .orElseThrow(() -> new ResourceNotFoundException("Department", "id", dto.getDepartmentId()));
-     *   List<Role> roleList = dto.getRoleIds().stream()
-     *       .map(id -> roleRepository.findById(id)
-     *           .orElseThrow(() -> new ResourceNotFoundException("Role", "id", id)))
-     *       .collect(Collectors.toList());
+     *           .orElseThrow(() -&gt; new ResourceNotFoundException("Department", "id", dto.getDepartmentId()));
      * </pre>
      */
     private static String buildRelationshipResolutionBlock(
@@ -186,31 +237,54 @@ public class ServiceGenerator {
         StringBuilder sb = new StringBuilder();
 
         for (RelationshipMeta rel : dtoRels) {
-            String relEntity  = rel.getRelatedEntityName();         // "Department"
+            String relEntity  = rel.getRelatedEntityName();          // "Department"
             String repoField  = rel.getRelatedRepositoryFieldName(); // "departmentRepository"
             String dtoGetter  = "dto.get" + rel.getCapitalisedDtoIdFieldName() + "()";
 
             if (rel.isCollection()) {
-                // Fetch list of related entities
-                String localListVar = rel.getFieldName() + "List"; // "rolesList" / "employeeList"
+                // FIX 1: Null-safe collection handling.
+                // Previously the generated code called .stream() directly on the
+                // DTO list, which threw a NullPointerException when the list was
+                // null.  Now a ternary guard is emitted so a null list produces
+                // an empty collection instead of crashing.
+                //
+                // FIX 4: Dynamic lambda variable name.
+                // "id" is a common method-parameter name (e.g. update(Long id, ...)).
+                // Hardcoding it inside a lambda caused "Variable 'id' is already
+                // defined in the scope" compile errors.  resolveSafeLambdaVarName
+                // picks "id" when safe, or "id1", "id2", … when it would conflict.
+                String localListVar = rel.getFieldName() + "List"; // e.g. "tagsList"
+                String lambdaVar = resolveSafeLambdaVarName("id", "id", ownerVarName);
                 sb.append(String.format("""
-                        List<%s> %s = %s.stream()
-                                .map(id -> %s.findById(id)
-                                        .orElseThrow(() -> new ResourceNotFoundException("%s", "id", id)))
-                                .collect(Collectors.toList());
+                        List<%s> %s = %s != null
+                                ? %s.stream()
+                                        .map(%s -> %s.findById(%s)
+                                                .orElseThrow(() -> new ResourceNotFoundException("%s", "id", %s)))
+                                        .collect(Collectors.toList())
+                                : java.util.Collections.emptyList();
                         """,
                         relEntity, localListVar, dtoGetter,
-                        repoField,
-                        relEntity
+                        dtoGetter,
+                        lambdaVar, repoField, lambdaVar,
+                        relEntity, lambdaVar
                 ));
             } else {
-                // Fetch single related entity
+                // FIX 3: Null check for required foreign-key IDs.
+                // Previously, a null FK ID was passed directly into findById(),
+                // producing a confusing low-level error.  Now a BadRequestException
+                // with a descriptive message is thrown before the repository call.
                 String localVar = Character.toLowerCase(relEntity.charAt(0))
-                        + relEntity.substring(1); // "department"
+                        + relEntity.substring(1); // e.g. "department"
+                String capitalizedIdField = rel.getCapitalisedDtoIdFieldName(); // e.g. "DepartmentId"
                 sb.append(String.format("""
+                        if (%s == null) {
+                                throw new BadRequestException("%s cannot be null");
+                        }
                         %s %s = %s.findById(%s)
                                 .orElseThrow(() -> new ResourceNotFoundException("%s", "id", %s));
                         """,
+                        dtoGetter,
+                        capitalizedIdField,
                         relEntity, localVar, repoField, dtoGetter,
                         relEntity, dtoGetter
                 ));
@@ -275,7 +349,7 @@ public class ServiceGenerator {
             String className,
             String varName,
             String idType,
-            StringBuilder imports,
+            String imports,          // FIX 2: now a plain String (was StringBuilder)
             StringBuilder fieldDeclarations,
             StringBuilder constructorParams,
             StringBuilder constructorAssigns,

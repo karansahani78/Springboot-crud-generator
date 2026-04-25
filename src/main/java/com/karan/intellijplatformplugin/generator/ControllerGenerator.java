@@ -90,7 +90,7 @@ public class ControllerGenerator {
             String varName
     ) {
         String imports   = buildImports(basePkg, entityPackage, entity);
-        String classHead = buildClassHead(entity, urlPath);
+        String classHead = buildClassHead(basePkg, entity, urlPath);
         String getAll    = buildGetAll(entity, urlPath);
         String getPaged  = buildGetPaginated(entity, urlPath);
         String getById   = buildGetById(entity, idType, urlPath);
@@ -116,6 +116,10 @@ public class ControllerGenerator {
 
     // =========================================================================
     // Imports
+    // FIX 1: Removed "import io.swagger.v3.oas.annotations.tags.Tag;" — when the
+    //         entity is also named "Tag" this import creates a class-name conflict
+    //         that prevents compilation.  The @Tag annotation is now referenced by
+    //         its fully qualified name in buildClassHead(), so no import is needed.
     // =========================================================================
 
     private static String buildImports(String basePkg, String entityPackage, String entity) {
@@ -132,7 +136,6 @@ public class ControllerGenerator {
                 import io.swagger.v3.oas.annotations.media.Schema;
                 import io.swagger.v3.oas.annotations.responses.ApiResponse;
                 import io.swagger.v3.oas.annotations.responses.ApiResponses;
-                import io.swagger.v3.oas.annotations.tags.Tag;
                 import jakarta.validation.Valid;
                 import org.slf4j.Logger;
                 import org.slf4j.LoggerFactory;
@@ -155,20 +158,22 @@ public class ControllerGenerator {
 
     // =========================================================================
     // Class declaration + constructor
+    // FIX 1 (continued): @Tag uses fully qualified name so it is unambiguous
+    //         regardless of the entity's class name.
     // =========================================================================
 
-    private static String buildClassHead(String entity, String urlPath) {
+    private static String buildClassHead(String basePkg, String entity, String urlPath) {
         return String.format("""
                 /**
                  * REST Controller for {@link %s} entity operations.
                  *
-                 * <p>All responses return {@link %sDto} — raw entity objects are never
+                 * <p>All responses return {@link %s.dto.%sDto} — raw entity objects are never
                  * exposed to avoid circular-reference serialisation issues and
                  * lazy-loading exceptions on relationship fields.
                  */
                 @RestController
                 @RequestMapping("/api/%s")
-                @Tag(name = "%s Management", description = "Operations for managing %s resources")
+                @io.swagger.v3.oas.annotations.tags.Tag(name = "%s Management", description = "Operations for managing %s resources")
                 public class %sController {
                 
                     private static final Logger log = LoggerFactory.getLogger(%sController.class);
@@ -179,7 +184,8 @@ public class ControllerGenerator {
                     }
                 
                 """,
-                entity, entity,              // Javadoc @link
+                entity,                      // Javadoc {@link %s} — entity name
+                basePkg, entity,             // Javadoc {@link %s.dto.%sDto} — fully-qualified DTO link
                 urlPath,                     // @RequestMapping
                 entity, entity,              // @Tag name + description
                 entity,                      // class name
@@ -335,7 +341,7 @@ public class ControllerGenerator {
                             @Parameter(description = "%s data to create", required = true)
                             @Valid @RequestBody %sDto dto
                     ) {
-                        log.info("POST /api/%s - Creating %s: {}", dto);
+                       log.info("Creating {}: {}", "%s", dto);
                         %s created = service.create(dto);
                         log.info("Created %s with id={}", created.getId());
                         return ResponseEntity.status(HttpStatus.CREATED).body(%sMapper.toDto(created));
@@ -382,7 +388,7 @@ public class ControllerGenerator {
                             @Parameter(description = "Updated %s data", required = true)
                             @Valid @RequestBody %sDto dto
                     ) {
-                        log.info("PUT /api/%s/{} - Updating %s: {}", id, dto);
+                       log.info("Updating {} id={} with dto={}", "%s", id, dto);
                         %s updated = service.update(id, dto);
                         log.info("Updated %s with id={}", updated.getId());
                         return ResponseEntity.ok(%sMapper.toDto(updated));
@@ -408,6 +414,9 @@ public class ControllerGenerator {
 
     // =========================================================================
     // DELETE /{id}
+    // FIX 2: The log statement had two {} placeholders but only one argument (id).
+    //         Removed the second placeholder so the format string matches exactly
+    //         one argument — no SLF4J "missing argument" warning at runtime.
     // =========================================================================
 
     private static String buildDelete(String entity, String idType, String urlPath) {
@@ -427,7 +436,7 @@ public class ControllerGenerator {
                             @Parameter(description = "ID of the %s to delete", required = true)
                             @PathVariable %s id
                     ) {
-                        log.info("DELETE /api/%s/{} - Deleting %s id={}", id);
+                        log.info("Deleting %s id={}", id);
                         service.delete(id);
                         return ResponseEntity.noContent().build();
                     }

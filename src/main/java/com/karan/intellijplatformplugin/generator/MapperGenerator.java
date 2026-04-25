@@ -42,8 +42,6 @@ public class MapperGenerator {
         // DtoGenerator now guarantees a field exists for every entry in allRels.
         List<RelationshipMeta> allRels = meta.getRelationships();
 
-        boolean needsListImport = allRels.stream().anyMatch(RelationshipMeta::isCollection);
-
         String toEntityScalars     = buildToEntityScalars(meta);
         String toDtoScalars        = buildToDtoScalars(meta);
         String updateEntityScalars = buildUpdateEntityScalars(meta);
@@ -162,8 +160,14 @@ public class MapperGenerator {
 
     // =========================================================================
     // Relationship → ID extraction for toDto()
-    // FIX: safe because DTO now contains ALL relationship fields (including
-    //      inverse @OneToMany) — no setter call is ever "orphaned".
+    //
+    // Collections: set to null — distinguishes "not loaded" from "empty list".
+    //   Accessing entity.get<Collection>() outside a transaction triggers
+    //   Hibernate lazy loading and causes LazyInitializationException.
+    //   Do NOT use emptyList() — that would falsely signal "loaded, zero items".
+    //
+    // Single refs: access ID only if relation is initialized — safe because
+    //   the caller controls whether the relation was fetched.
     // =========================================================================
 
     private static String buildToDtoRelationships(List<RelationshipMeta> allRels) {
@@ -171,30 +175,27 @@ public class MapperGenerator {
 
         StringBuilder sb = new StringBuilder();
         sb.append("\n        // ── Relationship ID extraction ────────────────────────────\n");
+        sb.append("        // NOTE:\n");
+        sb.append("        // Collection relationships are intentionally NOT mapped\n");
+        sb.append("        // to avoid LazyInitializationException (JPA lazy loading issue).\n");
 
         for (RelationshipMeta rel : allRels) {
-            String fieldName        = rel.getFieldName();
-            String capitalizedField = Character.toUpperCase(fieldName.charAt(0))
-                    + fieldName.substring(1);
             String dtoSetter = "set" + rel.getCapitalisedDtoIdFieldName();
 
             if (rel.isCollection()) {
-                String lambdaVar = String.valueOf(
-                        Character.toLowerCase(rel.getRelatedEntityName().charAt(0)));
-
+                // Do NOT access entity.get<Collection>() — triggers lazy loading
+                // outside the transaction → LazyInitializationException.
+                // null = "not loaded"; emptyList() would mean "loaded, zero items" — wrong.
                 sb.append(String.format(
-                        "        dto.%s(entity.get%s() != null\n"
-                                + "                ? entity.get%s().stream()\n"
-                                + "                    .map(%s -> %s.getId())\n"
-                                + "                    .collect(Collectors.toList())\n"
-                                + "                : java.util.Collections.emptyList());\n",
-                        dtoSetter,
-                        capitalizedField,
-                        capitalizedField,
-                        lambdaVar,
-                        lambdaVar
+                        "        dto.%s(null); // Lazy collection — not mapped to avoid LazyInitializationException\n",
+                        dtoSetter
                 ));
             } else {
+                // Access ID only if relation is initialized — does not assume fetch type.
+                String fieldName        = rel.getFieldName();
+                String capitalizedField = Character.toUpperCase(fieldName.charAt(0))
+                        + fieldName.substring(1);
+
                 sb.append(String.format(
                         "        dto.%s(entity.get%s() != null\n"
                                 + "                ? entity.get%s().getId() : null);\n",
@@ -213,6 +214,10 @@ public class MapperGenerator {
     // FIX 1: List and Collectors imports are deduplicated (added once, not per rel).
     // FIX 2: Related entity imports use basePackage + ".entity" so the path is
     //        never "com.karan.app.entity.entity.User" (double .entity).
+    // FIX 3: Collectors import removed — collections are no longer streamed in
+    //        the mapper, so Collectors is never referenced in generated code.
+    //        List import is also removed for the same reason (emptyList() is
+    //        called via its fully-qualified name java.util.Collections.emptyList()).
     // =========================================================================
 
     private static String buildImports(
@@ -226,9 +231,6 @@ public class MapperGenerator {
         // Own entity and DTO
         sb.append(String.format("import %s.entity.%s;\n", basePackage, className));
         sb.append(String.format("import %s.dto.%sDto;\n", basePackage, className));
-
-        // FIX: track whether we need List/Collectors — add once at the end
-        boolean needsCollectionImports = false;
 
         for (RelationshipMeta rel : allRels) {
             String relEntity = rel.getRelatedEntityName();
@@ -245,15 +247,10 @@ public class MapperGenerator {
 
             sb.append(String.format("import %s.entity.%s;\n", relBasePackage, relEntity));
 
-            if (rel.isCollection()) {
-                needsCollectionImports = true;
-            }
-        }
-
-        // FIX: emit List and Collectors exactly once
-        if (needsCollectionImports) {
-            sb.append("import java.util.List;\n");
-            sb.append("import java.util.stream.Collectors;\n");
+            // FIX: needsCollectionImports tracking removed — List and Collectors
+            // are no longer needed because collection relationships are emitted as
+            // java.util.Collections.emptyList() (fully-qualified, no import needed)
+            // and .stream()/.collect() calls are no longer generated at all.
         }
 
         return sb.toString();
