@@ -1,0 +1,69 @@
+<idea-plugin>
+
+    <id>com.karan.springbootcrud</id>
+
+    <name>Spring Boot CRUD Generator</name>
+
+    <!-- Version managed by Gradle -->
+    <version>1.0.7</version>
+
+    <!-- Let Gradle control compatibility -->
+    <idea-version since-build="243"/>
+
+    <vendor
+            name="Karan Sahani"
+            email="karansahani723@gmail.com"
+            url="https://github.com/karansahani78">
+        Karan Sahani
+    </vendor>
+
+    <description><![CDATA[
+        <p>
+            <b>Spring Boot CRUD Generator</b> generates
+            <b>production-ready CRUD layers</b> for Spring Boot applications
+            directly from JPA entities with advanced features and multi-entity support.
+        </p>
+
+        <p>
+            🛢️ <b>NEW:</b> Optional database selection (MySQL, PostgreSQL, MongoDB, H2) with automatic driver injection.
+        </p>
+
+        <p>
+            ⚡ <b>Smart Dependency Management:</b> Automatically adds required dependencies (JPA, Validation, Swagger, Security, Database drivers) to your project.
+        </p>
+
+        <!-- (KEEP YOUR FULL DESCRIPTION SAME — no change needed below) -->
+    ]]></description>
+
+    <change-notes><![CDATA[
+        <h3>Version 1.0.7</h3>
+        <ul>
+            <li><b>🛢️ Feature:</b> Added optional database selection (MySQL, PostgreSQL, MongoDB, H2)</li>
+            <li><b>⚡ Enhancement:</b> Automatic database driver injection based on selection</li>
+            <li><b>🧠 Improvement:</b> Smart dependency injection (JPA, Swagger, Security, DB drivers)</li>
+            <li><b>🚀 Upgrade:</b> Migrated to IntelliJ Platform Gradle Plugin 2.x</li>
+            <li><b>🚀 Compatibility:</b> Updated for IntelliJ IDEA 2024.3+</li>
+            <li><b>🔧 Fix:</b> Improved build compatibility and removed upper build restriction</li>
+        </ul>
+
+        <!-- (KEEP OLD CHANGELOG BELOW) -->
+    ]]></change-notes>
+
+    <!-- Dependencies -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
+
+    <actions>
+        <action
+                id="GenerateSpringCrud"
+                class="com.karan.intellijplatformplugin.action.GenerateCrudAction"
+                text="Generate Spring Boot CRUD"
+                description="Generate complete CRUD layer with multi-entity support, Swagger, Pagination, Auditing, Exception Handling, optional JWT Security, database selection (MySQL, PostgreSQL, MongoDB, H2), and automatic dependency injection"
+                icon="AllIcons.Actions.Lightning">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
+            <add-to-group group-id="GenerateGroup" anchor="first"/>
+        </action>
+    </actions>
+
+</idea-plugin>

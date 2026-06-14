@@ -1,0 +1,53 @@
+plugins {
+    id 'java'
+    id 'org.jetbrains.intellij.platform' version '2.14.0'
+}
+
+group = 'com.karan'
+version = '1.0.7'
+description = 'Spring Boot CRUD Generator IntelliJ Plugin'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+    intellijPlatform {
+        defaultRepositories()
+    }
+}
+
+dependencies {
+    intellijPlatform {
+        intellijIdeaCommunity("2024.3")
+        bundledPlugin("com.intellij.java")
+        pluginVerifier()
+        zipSigner()
+    }
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+}
+
+intellijPlatform {
+    pluginConfiguration {
+        name = "Spring Boot CRUD Generator"
+        version = "1.0.7"
+
+        ideaVersion {
+            sinceBuild = "233"
+            untilBuild = provider { null }
+        }
+    }
+}
+
+tasks {
+    buildSearchableOptions {
+        enabled = false
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+}
