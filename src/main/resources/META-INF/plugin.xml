@@ -1,0 +1,84 @@
+<idea-plugin>
+
+    <id>com.karan.springbootcrud</id>
+
+    <name>AutoSpring</name>
+
+    <!-- Version managed by Gradle -->
+    <version>1.2.0</version>
+
+    <!-- Let Gradle control compatibility -->
+    <idea-version since-build="243"/>
+
+    <vendor
+            name="Karan Sahani"
+            email="karansahani723@gmail.com"
+            url="https://github.com/karansahani78">
+        Karan Sahani
+    </vendor>
+
+    <description><![CDATA[
+        <p>
+            <b>AutoSpring</b> is an intelligent backend code automation plugin for IntelliJ IDEA that
+            <b>generates complete, production-ready Spring Boot application layers</b> directly from your JPA entities —
+            in a single click, with zero boilerplate writing.
+        </p>
+
+        <p>
+            ⚡ <b>One-Click Full-Stack Backend Generation:</b> Automatically creates Controllers, Services, Repositories,
+            DTOs, Mappers, Entities and Exception Handling — with multi-entity support and relationship-aware code.
+        </p>
+
+        <p>
+            🔐 <b>Auto-Configured Security &amp; Auth:</b> Generates JWT authentication filters, security configuration,
+            user details services, auth controllers and DTOs — ready to protect your APIs out of the box.
+        </p>
+
+        <p>
+            🛢️ <b>Database Automation:</b> Choose MySQL, PostgreSQL, MongoDB or H2 and AutoSpring injects the correct
+            drivers and configuration automatically.
+        </p>
+
+        <p>
+            🧠 <b>Smart Dependency Management:</b> Detects and adds required dependencies (JPA, Validation, Swagger,
+            Security, Database drivers) to your build file so your generated code compiles immediately.
+        </p>
+
+        <p>
+            📄 <b>Built-In Production Features:</b> Swagger/OpenAPI docs, pagination, JPA auditing, global exception
+            handlers, error responses and generated README documentation — all wired up for you.
+        </p>
+    ]]></description>
+
+    <change-notes><![CDATA[
+        <h3>Version 1.2.0</h3>
+        <ul>
+            <li><b>🛢️ Feature:</b> Added optional database selection (MySQL, PostgreSQL, MongoDB, H2)</li>
+            <li><b>⚡ Enhancement:</b> Automatic database driver injection based on selection</li>
+            <li><b>🧠 Improvement:</b> Smart dependency injection (JPA, Swagger, Security, DB drivers)</li>
+            <li><b>🚀 Upgrade:</b> Migrated to IntelliJ Platform Gradle Plugin 2.x</li>
+            <li><b>🚀 Compatibility:</b> Updated for IntelliJ IDEA 2024.3+</li>
+            <li><b>🔧 Fix:</b> Improved build compatibility and removed upper build restriction</li>
+        </ul>
+
+        <!-- (KEEP OLD CHANGELOG BELOW) -->
+    ]]></change-notes>
+
+    <!-- Dependencies -->
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
+
+    <actions>
+        <action
+                id="GenerateSpringCrud"
+                class="com.karan.intellijplatformplugin.action.GenerateCrudAction"
+                text="Generate Backend Code with AutoSpring"
+                description="Auto-generate a complete production-ready Spring Boot backend from your JPA entities: Controllers, Services, Repositories, DTOs, Mappers, JWT Security, Swagger, Pagination, Auditing, Exception Handling, DB configuration and smart dependency injection — all in one click"
+                icon="icons/springCodeIcon.png">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
+            <add-to-group group-id="GenerateGroup" anchor="first"/>
+        </action>
+    </actions>
+
+</idea-plugin>
