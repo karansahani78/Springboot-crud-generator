@@ -5,4 +5,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = 'springboot-crud-generator'
+rootProject.name = 'AutoSpring'

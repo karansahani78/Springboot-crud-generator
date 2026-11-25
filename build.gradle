@@ -7,6 +7,10 @@ group = 'com.karan'
 version = '1.2.0'
 description = 'AutoSpring - Intelligent Spring Boot Backend Code Automation IntelliJ Plugin'
 
+base {
+    archivesName = 'AutoSpring'
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
@@ -28,6 +32,11 @@ dependencies {
         zipSigner()
     }
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    // IntelliJ test fixtures still reference JUnit 4 types at runtime.
+    testImplementation 'junit:junit:4.13.2'
+    // Gradle 9 no longer puts the JUnit Platform launcher on the test runtime
+    // classpath implicitly. IntelliJ's test classloader requires it explicitly.
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.1'
 }
 
 intellijPlatform {

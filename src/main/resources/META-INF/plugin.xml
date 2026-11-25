@@ -30,6 +30,12 @@
         </p>
 
         <p>
+            🧾 <b>Local Prompt Mode:</b> Describe an entity and the backend layers you need in plain structured text.
+            AutoSpring parses it deterministically inside the IDE, shows an editable plan and file preview, and reuses
+            the same generators — no AI service, account or API key required.
+        </p>
+
+        <p>
             🔐 <b>Auto-Configured Security &amp; Auth:</b> Generates JWT authentication filters, security configuration,
             user details services, auth controllers and DTOs — ready to protect your APIs out of the box.
         </p>
@@ -53,7 +59,8 @@
     <change-notes><![CDATA[
         <h3>Version 1.2.0</h3>
         <ul>
-            <li><b>🛢️ Feature:</b> Added optional database selection (MySQL, PostgreSQL, MongoDB, H2)</li>
+            <li><b>✨ Feature:</b> Added a local, deterministic prompt-to-code workflow with an editable generation plan, file preview and structured task report</li>
+            <li><b>🛢️ Feature:</b> Added optional database selection (MySQL, PostgreSQL, MongoDB, H2) to the entity workflow</li>
             <li><b>⚡ Enhancement:</b> Automatic database driver injection based on selection</li>
             <li><b>🧠 Improvement:</b> Smart dependency injection (JPA, Swagger, Security, DB drivers)</li>
             <li><b>🚀 Upgrade:</b> Migrated to IntelliJ Platform Gradle Plugin 2.x</li>
@@ -78,6 +85,16 @@
             <add-to-group group-id="EditorPopupMenu" anchor="first"/>
             <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
             <add-to-group group-id="GenerateGroup" anchor="first"/>
+        </action>
+        <action
+                id="GenerateSpringCrudFromPrompt"
+                class="com.karan.intellijplatformplugin.action.GenerateFromPromptAction"
+                text="Generate Spring Boot CRUD from Prompt"
+                description="Generate a Spring Boot entity and backend architecture using a locally parsed developer prompt without external AI services."
+                icon="icons/springCodeIcon.png">
+            <add-to-group group-id="ToolsMenu" anchor="first"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="first"/>
         </action>
     </actions>
 

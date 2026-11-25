@@ -7,8 +7,8 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.*;
-import com.karan.intellijplatformplugin.generator.*;
 import com.karan.intellijplatformplugin.model.ClassMeta;
+import com.karan.intellijplatformplugin.service.CrudGenerationService;
 import com.karan.intellijplatformplugin.util.DependencyManager;
 import com.karan.intellijplatformplugin.util.PsiDirectoryUtil;
 
@@ -203,125 +203,13 @@ public class GenerateCrudAction extends AnAction {
             final boolean         finalSecurity    = includeSecurity;
 
             // =========================================================
-            // GENERATION
-            // Each call is wrapped in runSafe() so that one broken
-            // generator never aborts all subsequent generators.
-            //
-            // All generators now use the NEW unified signature:
-            //   generate(project, sourceRoot, finalMeta, finalAllEntities, ...)
+            // GENERATION — shared orchestration with the prompt workflow.
+            // The exact original generator order and behavior are preserved
+            // inside CrudGenerationService.generateLegacy().
             // =========================================================
             WriteCommandAction.runWriteCommandAction(project, () -> {
-
-                // --- Infrastructure / Config ---
-                // ✅ NEW signature — allEntities passed
-                runSafe("SwaggerConfig",  () -> SwaggerConfigGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities, finalSecurity));
-
-                // ✅ NEW signature — allEntities passed
-                runSafe("SwaggerReadme",  () -> SwaggerReadmeGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities));
-
-                // ✅ NEW signature
-                runSafe("AppProperties",  () -> ApplicationPropertiesGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities, finalSecurity));
-
-                // --- Security (optional) ---
-                if (finalSecurity) {
-                    // ✅ NEW signature — allEntities passed
-                    runSafe("SecurityConfig",         () -> SecurityConfigGenerator.generate(
-                            project, sourceRoot, finalMeta, finalAllEntities));
-
-                    // ✅ NEW signature
-                    runSafe("JwtService",             () -> JwtServiceGenerator.generate(
-                            project, sourceRoot, finalMeta, finalAllEntities));
-
-                    // ✅ NEW signature
-                    runSafe("JwtAuthFilter",          () -> JwtAuthenticationFilterGenerator.generate(
-                            project, sourceRoot, finalMeta, finalAllEntities));
-
-                    // ✅ NEW signature
-                    runSafe("UserEntity",             () -> UserEntityGenerator.generate(
-                            project, sourceRoot, finalMeta, finalAllEntities));
-
-                    // ✅ NEW signature
-                    runSafe("RoleEnum",               () -> RoleEnumGenerator.generate(
-                            project, sourceRoot, finalMeta, finalAllEntities));
-
-                    // ✅ NEW signature
-                    runSafe("AppUserRepository",      () -> AppUserRepositoryGenerator.generate(
-                            project, sourceRoot, finalMeta, finalAllEntities));
-
-                    // ✅ NEW signature
-                    runSafe("UserDetailsServiceImpl", () -> UserDetailsServiceImplGenerator.generate(
-                            project, sourceRoot, finalMeta, finalAllEntities));
-
-                    // ✅ NEW signature
-                    runSafe("AuthenticationService",  () -> AuthenticationServiceGenerator.generate(
-                            project, sourceRoot, finalMeta, finalAllEntities));
-
-                    // ✅ NEW signature — allEntities passed
-                    runSafe("AuthController",         () -> AuthControllerGenerator.generate(
-                            project, sourceRoot, finalMeta, finalAllEntities));
-
-                    // ✅ NEW signature
-                    runSafe("AuthDto",                () -> AuthDtoGenerator.generate(
-                            project, sourceRoot, finalMeta, finalAllEntities));
-
-                    // ✅ NEW signature — allEntities passed
-                    runSafe("SecurityReadme",         () -> SecurityReadmeGenerator.generate(
-                            project, sourceRoot, finalMeta, finalAllEntities));
-                }
-
-                // --- Auditing ---
-                // ✅ NEW signature
-                runSafe("BaseAuditEntity",   () -> BaseAuditEntityGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities));
-
-                // ✅ NEW signature — allEntities inserted before finalSecurity
-                runSafe("JpaAuditingConfig", () -> JpaAuditingConfigGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities, finalSecurity));
-
-                // ✅ NEW signature — allEntities passed
-                runSafe("AuditingReadme",    () -> AuditingReadmeGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities));
-
-                // --- Pagination ---
-                // ✅ NEW signature
-                runSafe("Pagination",        () -> PaginationGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities));
-
-                // --- Exception Handling ---
-                // ✅ NEW signature
-                runSafe("Exception",         () -> ExceptionGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities));
-
-                // ✅ NEW signature
-                runSafe("ErrorResponse",     () -> ErrorResponseGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities));
-
-                // ✅ NEW signature
-                runSafe("GlobalExHandler",   () -> GlobalExceptionHandlerGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities));
-
-                // --- Core CRUD Layers (all ✅ NEW signature) ---
-                // DtoGenerator      → emits Long xxxId fields instead of entity refs
-                // MapperGenerator   → skips relationship fields entirely
-                // ServiceGenerator  → fetches related entities via their repositories
-                // ControllerGenerator → standard CRUD wiring
-                runSafe("Dto",        () -> DtoGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities));
-
-                runSafe("Mapper",     () -> MapperGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities));
-
-                runSafe("Repository", () -> RepositoryGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities));
-
-                runSafe("Service",    () -> ServiceGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities));
-
-                runSafe("Controller", () -> ControllerGenerator.generate(
-                        project, sourceRoot, finalMeta, finalAllEntities));
+                CrudGenerationService.generateLegacy(
+                        project, sourceRoot, finalMeta, finalAllEntities, finalSecurity);
             });
 
             // ================= SUCCESS DIALOG =================
@@ -400,20 +288,6 @@ public class GenerateCrudAction extends AnAction {
     // ─────────────────────────────────────────────────────────────────────────
     // Helpers
     // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Executes a generator step, catching any exception so one broken
-     * generator never prevents the rest from running.
-     * Failures are written to stderr and visible in Help → Show Log.
-     */
-    private void runSafe(String name, Runnable task) {
-        try {
-            task.run();
-        } catch (Exception ex) {
-            System.err.printf("⚠️ [CrudGenerator] %s failed: %s%n", name, ex.getMessage());
-            ex.printStackTrace();
-        }
-    }
 
     @Override
     public void update(AnActionEvent e) {
